@@ -21,7 +21,7 @@ O sistema será desenvolvido aplicando os conceitos de Programação Orientada a
 - Quartz.NET (agendamento) e Serilog (logs)
 - xUnit (testes)
 
-  ## 🚀 Funcionalidades do Sistema
+  ##  Funcionalidades do Sistema
 
 * 🤖 **Extração Automatizada** ([#34](https://github.com/sonjoao/Samu-Dataflow/issues/34))
   > Automação para acesso ao sistema legado, exportação e guarda segura de arquivos.
@@ -41,7 +41,7 @@ O sistema será desenvolvido aplicando os conceitos de Programação Orientada a
 * 🛡️ **Análise de Vulnerabilidades em Saúde** ([#20](https://github.com/sonjoao/Samu-Dataflow/issues/20))
   > Auditoria de segurança baseada em STRIDE, OWASP Top 10 e relatórios do OWASP ZAP.
 
- ## 🏗️ Diagrama de Classes (UML) Atualizado
+ ##  Diagrama de Classes (UML) Atualizado
 
 ```mermaid
 classDiagram
