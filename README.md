@@ -12,8 +12,8 @@ O sistema será desenvolvido aplicando os conceitos de Programação Orientada a
 * Registrar logs de execução e auditoria para monitoramento das rotinas de dados.
 * Disponibilizar dados tratados para apoiar tomadas de decisão céleres e predições epidemiológicas pela SESAU/CIE.
 
-  | Funcionalidade | Descrição | Issue |
-|---|---|---|
+ ##  Funcionalidade | Descrição | Issue |
+ 
 | Extração automatizada | Robô acessa o legado, exporta os dados e guarda os arquivos em ambiente seguro | [PREENCHER] |
 | Consolidação | Padronização de colunas, validação, deduplicação e base histórica | [PREENCHER] |
 | Busca inteligente | Pesquisa textual por endereço, bairro, observações, código do chamado e nº iCard/192 | #1 |
