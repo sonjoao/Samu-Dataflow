@@ -19,63 +19,105 @@ O sistema será desenvolvido aplicando os conceitos de Programação Orientada a
  Git e GitHub
 Arquivos .xlsx / Banco de Dados Relacional
 
- ## 🏗️ Diagrama de Classes (UML)
+ ## 🏗️ Diagrama de Classes (UML) Atualizado
 
 ```mermaid
+```mermaid
 classDiagram
+    class AgendadorExtracao {
+        -expressaoCron: String
+        -tamanhoLote: int
+        -tentativasMaximas: int
+        +atualizarConfiguracao() void
+        +dispararExecucao() void
+    }
     class ExtratorLegado {
         -periodoInicio: Date
         -periodoFim: Date
         -statusExecucao: String
-        +executarExtracaoManual(): File
-        +agendarExtracaoAutomatica(): void
+        +executarExtracaoManual() File
+        +agendarExtracaoAutomatica() void
+        +preencherPeriodo() void
+        +lerTotalDoLegado() int
     }
-
+    class ServicoCriptografia {
+        +criptografarArquivo(caminho: String) File
+        +descriptografarArquivo(caminho: String) File
+    }
     class LeitorPlanilha {
         -caminhoArquivo: String
         -formatoValido: Boolean
-        +carregarArquivoXlsx(arquivo: File): List~Ocorrencia~
-        +validarEstrutura(): Boolean
+        +carregarArquivoXlsx(arquivo: File) List~Ocorrencia~
+        +validarEstrutura() Boolean
     }
-
     class PipelineETL {
         -dataProcessamento: DateTime
         -registrosProcessados: int
-        +consolidarBase(): void
-        +removerDuplicados(dados: List~Ocorrencia~): List~Ocorrencia~
-        +tratarInconsistencias(): void
+        +consolidarBase() void
+        +removerDuplicados(dados: List~Ocorrencia~) List~Ocorrencia~
+        +tratarInconsistencias() void
     }
-
+    class Pseudonimizador {
+        +pseudonimizar(valor: String) String
+    }
     class Ocorrencia {
         -idOcorrencia: String
+        -codigoChamado: String
+        -numeroRegistroICard: String
         -dataHoraAtendimento: DateTime
         -bairro: String
+        -endereco: String
+        -observacoes: String
         -tipoAgravo: String
         -gravidade: String
         -status: String
-        +validarCamposObrigatorios(): Boolean
-        +anonimizarDadosSensiveis(): void
+        +validarCamposObrigatorios() Boolean
+        +anonimizarDadosSensiveis() void
     }
-
     class BaseHistorica {
         -totalRegistros: int
         -ultimaAtualizacao: DateTime
-        +salvarOcorrencias(dados: List~Ocorrencia~): void
-        +consultarOcorrencias(filtro: String): List~Ocorrencia~
-        +exportarDadosEstruturados(formato: String): File
+        +salvarOcorrencias(dados: List~Ocorrencia~) void
+        +consultarOcorrencias(filtro: String) List~Ocorrencia~
+        +exportarDadosEstruturados(formato: String) File
     }
-
+    class ConferenciaContagem {
+        -totalLegado: int
+        -totalImportado: int
+        +conferir() Boolean
+        +gerarAlerta() void
+    }
+    class ServicoBusca {
+        +buscar(termo: String, filtros: String) List~Ocorrencia~
+        +sugerir(prefixo: String) List~String~
+    }
+    class Usuario {
+        -email: String
+        -papel: String
+        +autenticar(senha: String) Boolean
+    }
     class GerenciadorLogs {
         -idLog: String
         -dataHora: DateTime
         -tipoEvento: String
         -mensagem: String
-        +registrarLog(mensagem: String, tipo: String): void
-        +enviarAlertaFalha(erro: String): void
+        +registrarLog(mensagem: String, tipo: String) void
+        +registrarAuditoria(usuario: Usuario, acao: String) void
     }
 
-    ExtratorLegado ..> LeitorPlanilha : usa
-    LeitorPlanilha -- PipelineETL
-    PipelineETL *-- Ocorrencia
-    PipelineETL *-- BaseHistorica
+    AgendadorExtracao --> ExtratorLegado : aciona
+    ExtratorLegado --> ServicoCriptografia : cifra arquivos
+    ExtratorLegado --> LeitorPlanilha : usa
+    LeitorPlanilha --> ServicoCriptografia : decifra
+    LeitorPlanilha --> PipelineETL : entrega ocorrencias
+    PipelineETL --> Pseudonimizador : usa
+    PipelineETL --> BaseHistorica : grava
+    BaseHistorica "1" *-- "*" Ocorrencia : contem
+    ConferenciaContagem --> ExtratorLegado : total do legado
+    ConferenciaContagem --> BaseHistorica : total importado
+    ServicoBusca --> BaseHistorica : consulta
+    Usuario --> ServicoBusca : usa
     PipelineETL ..> GerenciadorLogs : registra
+    ConferenciaContagem ..> GerenciadorLogs : registra
+    ServicoBusca ..> GerenciadorLogs : audita
+```
