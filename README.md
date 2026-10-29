@@ -12,12 +12,13 @@ O sistema será desenvolvido aplicando os conceitos de Programação Orientada a
 * Registrar logs de execução e auditoria para monitoramento das rotinas de dados.
 * Disponibilizar dados tratados para apoiar tomadas de decisão céleres e predições epidemiológicas pela SESAU/CIE.
 
-## Tecnologias Planejadas
+## Tecnologias
 
- C# (.NET)
- Visual Studio / JetBrains Rider
- Git e GitHub
-Arquivos .xlsx / Banco de Dados Relacional
+- C# / .NET (ASP.NET Core Web API, Worker Service)
+- Playwright para .NET (robô de extração)
+- Entity Framework Core + PostgreSQL
+- Quartz.NET (agendamento) e Serilog (logs)
+- xUnit (testes)
 
  ## 🏗️ Diagrama de Classes (UML) Atualizado
 
