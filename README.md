@@ -21,6 +21,26 @@ O sistema será desenvolvido aplicando os conceitos de Programação Orientada a
 - Quartz.NET (agendamento) e Serilog (logs)
 - xUnit (testes)
 
+  ## 🚀 Funcionalidades do Sistema
+
+* 🤖 **Extração Automatizada** ([#34](https://github.com/sonjoao/Samu-Dataflow/issues/34))
+  > Automação para acesso ao sistema legado, exportação e guarda segura de arquivos.
+
+* ⚙️ **Consolidação e Processamento Dinâmico** ([#27](https://github.com/sonjoao/Samu-Dataflow/issues/27))
+  > Padronização de colunas, validação, remoção de duplicatas e integração com a base histórica.
+
+* 🔍 **Busca Inteligente** ([#1](https://github.com/sonjoao/Samu-Dataflow/issues/1))
+  > Consulta textual por endereço, bairro, observações, código do chamado e registro iCard/192.
+
+* 📊 **Contagem com Conferência** ([#8](https://github.com/sonjoao/Samu-Dataflow/issues/8))
+  > Auditoria e comparação entre o total importado e o total mantido no legado.
+
+* 🔐 **Criptografia e Segurança de Dados** ([#14](https://github.com/sonjoao/Samu-Dataflow/issues/14))
+  > Cifra de arquivos via AES-GCM e pseudonimização de dados identificáveis.
+
+* 🛡️ **Análise de Vulnerabilidades em Saúde** ([#20](https://github.com/sonjoao/Samu-Dataflow/issues/20))
+  > Auditoria de segurança baseada em STRIDE, OWASP Top 10 e relatórios do OWASP ZAP.
+
  ## 🏗️ Diagrama de Classes (UML) Atualizado
 
 ```mermaid
