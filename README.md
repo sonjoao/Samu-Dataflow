@@ -22,7 +22,6 @@ Arquivos .xlsx / Banco de Dados Relacional
  ## 🏗️ Diagrama de Classes (UML) Atualizado
 
 ```mermaid
-```mermaid
 classDiagram
     class AgendadorExtracao {
         -expressaoCron: String
