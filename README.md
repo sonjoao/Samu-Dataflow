@@ -4,14 +4,17 @@ O SAMU DataFlow tem como objetivo automatizar a extração, consolidação e tra
 
 O sistema será desenvolvido aplicando os conceitos de Programação Orientada a Objetos em C#, fornecendo uma plataforma centralizada para os técnicos da saúde e para o Centro de Informações Estratégicas em Vigilância em Saúde (CIE).
 
-## Objetivos do Projeto
+##  Objetivos do Projeto
 
-* Aplicar os conceitos de Programação Orientada a Objetos (POO) em C#.
-* Automatizar a leitura e consolidação de planilhas de ocorrências em formato .xlsx
-* Identificar, tratar inconsistências e remover registros duplicados entre bases mensais.
-* Registrar logs de execução e auditoria para monitoramento das rotinas de dados.
-* Disponibilizar dados tratados para apoiar tomadas de decisão céleres e predições epidemiológicas pela SESAU/CIE.
+### Objetivo Geral
+Automatizar a extração, consolidação e tratamento dos dados de ocorrências do SAMU Recife, substituindo processos manuais em planilhas por uma pipeline segura e unificada que apoie análises epidemiológicas e a tomada de decisão pela SESAU/CIE.
 
+### Objetivos Específicos
+* **Automação de ETL:** Automatizar a leitura, tratamento de inconsistências e remoção de registos duplicados a partir de ficheiros `.xlsx` mensais.
+* **Segurança e Conformidade (LGPD):** Implementar criptografia de ficheiros (AES-GCM), pseudonimização de dados sensíveis de pacientes e análise de vulnerabilidades (STRIDE / OWASP).
+* **Consolidação e Consulta:** Criar uma base histórica centralizada com suporte a pesquisas inteligentes por endereço, bairro, código de chamado ou registo iCard/192.
+* **Auditoria e Integridade:** Garantir a conferência exata entre o volume extraído do sistema legado e o importado, registando *logs* detalhados de execução.
+* **Arquitetura Orientada a Objetos:** Desenvolver a solução em C# aplicando boas práticas e padrões de Programação Orientada a Objetos (POO).
 
 ## Tecnologias
 
