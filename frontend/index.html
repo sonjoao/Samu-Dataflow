@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SAMU DataFlow — Dados que salvam vidas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="logo-mark" viewBox="0 0 100 100">
+        <g fill="currentColor">
+          <rect x="40" y="6" width="20" height="88" rx="2" />
+          <rect x="40" y="6" width="20" height="88" rx="2" transform="rotate(60 50 50)" />
+          <rect x="40" y="6" width="20" height="88" rx="2" transform="rotate(-60 50 50)" />
+        </g>
+        <g fill="none" stroke="#fff" stroke-linecap="round">
+          <line x1="50" y1="20" x2="50" y2="80" stroke-width="5" />
+          <path d="M43 32 C58 36 58 44 50 48 C42 52 42 60 57 64" stroke-width="4" />
+        </g>
+        <path d="M58 82 C72 80 80 70 86 58" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" />
+        <path d="M78 56 L90 52 L88 65 Z" fill="#fff" />
+      </symbol>
+    </defs>
+  </svg>
+
+  <div class="app">
+    
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <svg class="brand-mark"><use href="#logo-mark" /></svg>
+        <div class="brand-text">
+          <span class="brand-samu">SAMU</span>
+          <span class="brand-df">Data<b>Flow</b></span>
+        </div>
+      </div>
+
+      <nav class="nav" id="nav">
+        <a href="#" class="nav-item active" data-view="inicio">
+          <svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>
+          Início
+        </a>
+        <a href="#" class="nav-item" data-view="ocorrencias">
+          <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M12 8v8M8 12h8"/></svg>
+          Ocorrências
+        </a>
+        <a href="#" class="nav-item" data-view="etl">
+          <svg viewBox="0 0 24 24"><rect x="3" y="4" width="7" height="6" rx="1"/><rect x="14" y="14" width="7" height="6" rx="1"/><path d="M10 7h4a3 3 0 0 1 3 3v4"/></svg>
+          ETL / Processamento
+        </a>
+        <a href="#" class="nav-item" data-view="base">
+          <svg viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>
+          Base Histórica
+        </a>
+        <a href="#" class="nav-item" data-view="relatorios">
+          <svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M9 13h6M9 17h6M9 9h3"/></svg>
+          Relatórios
+        </a>
+        <a href="#" class="nav-item" data-view="logs">
+          <svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>
+          Logs
+        </a>
+        <a href="#" class="nav-item" data-view="config">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+          Configurações
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <svg class="skyline" viewBox="0 0 160 40" aria-hidden="true">
+          <path d="M0 40V30h8v-8h6v8h6V14h5v16h8V22h6v18M45 40V26h10l8-14 8 14h10v14M90 40V18h6v-6h4v6h6v22M112 40c10-18 38-18 48 0" />
+        </svg>
+        <span class="city">RECIFE - PE</span>
+        <div class="badge-192">
+          <svg class="badge-mark"><use href="#logo-mark" /></svg>
+          <div><small>SAMU</small><strong>192</strong></div>
+        </div>
+      </div>
+    </aside>
+
+    <div class="overlay" id="overlay"></div>
+
+    
+    <div class="main">
+      <header class="topbar">
+        <button class="icon-btn menu-btn" id="menuBtn" aria-label="Abrir menu">
+          <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+
+        <label class="search">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+          <input type="search" id="searchInput" placeholder="Buscar por ocorrência, bairro, tipo de agravo..." />
+        </label>
+
+        <div class="topbar-right">
+          <button class="icon-btn bell" id="bellBtn" aria-label="Notificações">
+            <svg viewBox="0 0 24 24"><path d="M18 16V11a6 6 0 0 0-12 0v5l-2 2h16zM10 21h4"/></svg>
+            <span class="dot"></span>
+          </button>
+          <div class="notif-panel" id="notifPanel">
+            <h4>Notificações</h4>
+            <ul>
+              <li><span class="ok"></span>ETL concluído com sucesso</li>
+              <li><span class="warn"></span>2.143 registros duplicados removidos</li>
+              <li><span class="info"></span>Nova planilha recebida da central</li>
+            </ul>
+          </div>
+
+          <div class="user">
+            <div class="avatar">TS</div>
+            <div class="user-info">
+              <strong>Técnico de Saúde</strong>
+              <small>CIE / SESAU</small>
+            </div>
+            <svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+        </div>
+      </header>
+
+      <main class="content">
+
+        
+        <section class="view active" id="view-inicio">
+          <div class="hero">
+            <div>
+              <h1>Bem-vindo, Técnico!</h1>
+              <p>Aqui você acompanha o processamento das ocorrências do SAMU Recife,<br />com dados consolidados e prontos para análise.</p>
+            </div>
+            <div class="update-card">
+              <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+              <div>
+                <small>Última atualização</small>
+                <strong id="lastUpdate">27/10/2025 14:32</strong>
+                <span class="pill success" id="statusPill">✓ Processamento concluído</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="kpis">
+            <article class="kpi">
+              <div class="kpi-icon blue"><svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M9 13h6M9 17h6"/></svg></div>
+              <div>
+                <span class="kpi-label">Total de ocorrências</span>
+                <strong class="kpi-value" data-count="238764">0</strong>
+                <span class="kpi-trend up">↑ 12,4%</span>
+                <small>vs. mês anterior</small>
+              </div>
+            </article>
+            <article class="kpi">
+              <div class="kpi-icon green"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg></div>
+              <div>
+                <span class="kpi-label">Registros tratados</span>
+                <strong class="kpi-value" data-count="236421">0</strong>
+                <span class="kpi-trend up">↑ 12,1%</span>
+                <small>vs. mês anterior</small>
+              </div>
+            </article>
+            <article class="kpi">
+              <div class="kpi-icon red"><svg viewBox="0 0 24 24"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.5"/></svg></div>
+              <div>
+                <span class="kpi-label">Duplicados removidos</span>
+                <strong class="kpi-value" data-count="2143">0</strong>
+                <span class="kpi-trend down">↓ 8,6%</span>
+                <small>vs. mês anterior</small>
+              </div>
+            </article>
+            <article class="kpi">
+              <div class="kpi-icon blue"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+              <div>
+                <span class="kpi-label">Tempo de processamento</span>
+                <strong class="kpi-value" data-count="12" data-suffix=" min">0</strong>
+                <span class="kpi-trend down">↓ 67,3%</span>
+                <small>vs. processo manual</small>
+              </div>
+            </article>
+          </div>
+
+          <div class="grid-2">
+            <article class="card">
+              <h3>Ocorrências por dia <span class="muted">(últimos 30 dias)</span></h3>
+              <div class="chart-wrap">
+                <canvas id="lineChart"></canvas>
+                <div class="tooltip" id="lineTooltip"></div>
+              </div>
+            </article>
+            <article class="card">
+              <h3>Tipos de agravo</h3>
+              <div class="donut-wrap">
+                <div class="donut-box">
+                  <canvas id="donutChart" width="220" height="220"></canvas>
+                  <div class="donut-center"><strong>238.764</strong><small>total</small></div>
+                </div>
+                <ul class="legend" id="donutLegend"></ul>
+              </div>
+            </article>
+          </div>
+
+          <div class="grid-2 alt">
+            <article class="card">
+              <h3>Ocorrências por bairro <span class="muted">(Recife)</span></h3>
+              <div class="bairros" id="bairroList"></div>
+              <div class="heat-legend">
+                <span><i style="background:var(--heat-5)"></i>&gt; 5.000</span>
+                <span><i style="background:var(--heat-4)"></i>2.001 – 5.000</span>
+                <span><i style="background:var(--heat-3)"></i>1.001 – 2.000</span>
+                <span><i style="background:var(--heat-2)"></i>501 – 1.000</span>
+                <span><i style="background:var(--heat-1)"></i>&lt; 500</span>
+              </div>
+            </article>
+            <article class="card">
+              <div class="card-head">
+                <h3>Últimas ocorrências</h3>
+                <a href="#" class="link" data-goto="ocorrencias">Ver todas →</a>
+              </div>
+              <div class="table-wrap">
+                <table class="table">
+                  <thead><tr><th>ID</th><th>Data/Hora</th><th>Bairro</th><th>Tipo de agravo</th><th>Gravidade</th></tr></thead>
+                  <tbody id="recentTable"></tbody>
+                </table>
+              </div>
+            </article>
+          </div>
+
+          <div class="grid-3">
+            <article class="card">
+              <div class="card-head">
+                <h3>Processamento de dados</h3>
+                <button class="btn" id="runPipeline">▶ Executar pipeline</button>
+              </div>
+              <ol class="pipeline" id="pipeline">
+                <li data-step="0"><span class="step-dot"></span><strong>Extração</strong><small>Planilhas .xlsx</small></li>
+                <li data-step="1"><span class="step-dot"></span><strong>Leitura</strong><small>Validação de estrutura</small></li>
+                <li data-step="2"><span class="step-dot"></span><strong>Consolidação</strong><small>Base única</small></li>
+                <li data-step="3"><span class="step-dot"></span><strong>Tratamento</strong><small>Remoção de duplicados</small></li>
+                <li data-step="4"><span class="step-dot"></span><strong>Finalização</strong><small>Pronto para análise</small></li>
+              </ol>
+            </article>
+            <article class="card">
+              <h3>Execução do pipeline</h3>
+              <div class="exec-head">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                <div>
+                  <small>Última execução</small>
+                  <strong id="execDate">27/10/2025 14:21</strong>
+                  <span class="pill success" id="execPill">✓ Concluído com sucesso</span>
+                </div>
+              </div>
+              <dl class="exec-stats">
+                <div><dt>Registros processados</dt><dd id="execRecords">245.321</dd></div>
+                <div><dt>Duplicados removidos</dt><dd id="execDup">2.143</dd></div>
+                <div><dt>Tempo de execução</dt><dd id="execTime">12 min</dd></div>
+              </dl>
+            </article>
+            <article class="card">
+              <div class="card-head">
+                <h3>Logs recentes</h3>
+                <a href="#" class="link" data-goto="logs">Ver todos →</a>
+              </div>
+              <ul class="logs" id="recentLogs"></ul>
+            </article>
+          </div>
+        </section>
+
+        
+        <section class="view" id="view-ocorrencias">
+          <div class="page-head">
+            <h1>Ocorrências</h1>
+            <div class="filters">
+              <select id="filterTipo"><option value="">Todos os agravos</option></select>
+              <select id="filterGrav">
+                <option value="">Todas as gravidades</option>
+                <option>Alta</option><option>Média</option><option>Baixa</option>
+              </select>
+            </div>
+          </div>
+          <article class="card">
+            <div class="table-wrap">
+              <table class="table">
+                <thead><tr><th>ID</th><th>Data/Hora</th><th>Bairro</th><th>Tipo de agravo</th><th>Gravidade</th></tr></thead>
+                <tbody id="fullTable"></tbody>
+              </table>
+            </div>
+            <p class="empty" id="emptyMsg" hidden>Nenhuma ocorrência encontrada.</p>
+          </article>
+        </section>
+
+        
+        <section class="view" id="view-logs">
+          <div class="page-head"><h1>Logs</h1></div>
+          <article class="card"><ul class="logs big" id="allLogs"></ul></article>
+        </section>
+
+        
+        <section class="view" id="view-placeholder">
+          <div class="placeholder">
+            <svg><use href="#logo-mark" /></svg>
+            <h1 id="placeholderTitle">Em construção</h1>
+            <p>Esta seção do SAMU DataFlow está em desenvolvimento.</p>
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="script.js"></script>
+</body>
+</html>
