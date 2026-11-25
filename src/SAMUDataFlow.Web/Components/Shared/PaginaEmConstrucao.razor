@@ -1,0 +1,14 @@
+<section class="page">
+    <header class="page-header">
+        <h1>@Titulo</h1>
+    </header>
+    <div class="card">
+        <p class="placeholder-title">Em construção</p>
+        <p class="muted">@Descricao</p>
+    </div>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public string Titulo { get; set; } = "";
+    [Parameter] public string? Descricao { get; set; }
+}

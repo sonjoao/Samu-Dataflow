@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SAMUDataFlow.Domain/SAMUDataFlow.Domain.csproj" />
+    <Project Path="src/SAMUDataFlow.Infrastructure/SAMUDataFlow.Infrastructure.csproj" />
+    <Project Path="src/SAMUDataFlow.Web/SAMUDataFlow.Web.csproj" />
+  </Folder>
+</Solution>

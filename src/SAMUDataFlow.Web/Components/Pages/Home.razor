@@ -1,0 +1,237 @@
+@page "/"
+@using System.Globalization
+@using Microsoft.EntityFrameworkCore
+@using SAMUDataFlow.Domain.Comum
+@using SAMUDataFlow.Domain.Enums
+@using SAMUDataFlow.Infrastructure.Persistencia
+@inject SamuDbContext Db
+
+<PageTitle>Início — SAMU DataFlow</PageTitle>
+
+<section class="page dashboard-page">
+    <header class="page-heading dashboard-heading">
+        <div>
+            <p class="eyebrow">PAINEL OPERACIONAL</p>
+            <h1>Visão geral</h1>
+            <p class="page-subtitle">Acompanhe os atendimentos do SAMU em Recife.</p>
+        </div>
+        <div class="heading-meta">
+            <span class="data-demo"><span></span> Banco conectado</span>
+            <span class="current-date">@DataAtual</span>
+        </div>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(Erro))
+    {
+        <div class="notice notice-error" role="alert">@Erro</div>
+    }
+    else if (Carregando)
+    {
+        <div class="card loading-card">Carregando indicadores…</div>
+    }
+    else
+    {
+        @if (TotalPeriodo == 0)
+        {
+            <div class="notice notice-empty-data">
+                <div><strong>Sem atendimentos nos últimos 30 dias.</strong><span>Importe os arquivos reais para atualizar os indicadores deste período.</span></div>
+                <a class="button button-primary" href="importar">Importar dados</a>
+            </div>
+        }
+
+        <div class="period-row">
+            <div>
+                <h2 class="section-title">Resumo do período</h2>
+                <p class="muted">Últimos 30 dias · dados atualizados agora</p>
+            </div>
+            <a class="button button-secondary" href="ocorrencias">
+                Ver ocorrências <span aria-hidden="true">→</span>
+            </a>
+        </div>
+
+        <div class="metric-grid">
+            <article class="metric-card">
+                <div class="metric-top"><span class="metric-label">Atendimentos</span><span class="metric-mark mark-red">30D</span></div>
+                <strong class="metric-value">@TotalPeriodo.ToString("N0", PtBr)</strong>
+                <span class="metric-note">registros no período</span>
+            </article>
+            <article class="metric-card">
+                <div class="metric-top"><span class="metric-label">Em andamento</span><span class="metric-mark mark-amber">●</span></div>
+                <strong class="metric-value">@EmAndamento.ToString("N0", PtBr)</strong>
+                <span class="metric-note">atendimentos ativos</span>
+            </article>
+            <article class="metric-card">
+                <div class="metric-top"><span class="metric-label">Alta gravidade</span><span class="metric-mark mark-pink">!</span></div>
+                <strong class="metric-value">@AltaGravidade.ToString("N0", PtBr)</strong>
+                <span class="metric-note">classificados como alta</span>
+            </article>
+            <article class="metric-card">
+                <div class="metric-top"><span class="metric-label">Tempo médio de resposta</span><span class="metric-mark mark-teal">min</span></div>
+                <strong class="metric-value">@(TempoMedio.HasValue ? TempoMedio.Value.ToString("N1", PtBr) : "—")<small> min</small></strong>
+                <span class="metric-note">entre chamado e chegada</span>
+            </article>
+        </div>
+
+        <div class="dashboard-grid">
+            <article class="card chart-card trend-card">
+                <div class="card-heading">
+                    <div><h2 class="section-title">Volume de atendimentos</h2><p class="muted">Chamados por dia · últimos 14 dias</p></div>
+                    <span class="chart-total">@TotalPeriodo.ToString("N0", PtBr)<small> no período</small></span>
+                </div>
+                <div class="trend-chart" role="img" aria-label="Atendimentos por dia nos últimos 14 dias">
+                    @foreach (var ponto in Tendencia)
+                    {
+                        <div class="trend-column" title="@ponto.Data.ToString("dd/MM", PtBr): @ponto.Total atendimentos">
+                            <span class="trend-number">@ponto.Total</span>
+                            <div class="trend-track"><span class="trend-bar" style="height:@Altura(ponto.Total)%"></span></div>
+                            <span class="trend-label">@ponto.Data.ToString("dd/MM", PtBr)</span>
+                        </div>
+                    }
+                </div>
+                <div class="chart-legend"><span class="legend-dot"></span> Atendimentos registrados</div>
+            </article>
+
+            <article class="card chart-card category-card">
+                <div class="card-heading">
+                    <div><h2 class="section-title">Por tipo de agravo</h2><p class="muted">Distribuição no período</p></div>
+                </div>
+                @if (Agravos.Count == 0)
+                {
+                    <p class="empty-inline">Sem registros para este período.</p>
+                }
+                else
+                {
+                    <div class="category-list">
+                        @foreach (var item in Agravos)
+                        {
+                            <div class="category-row">
+                                <div class="category-label"><span>@item.Nome</span><span>@item.Total <small>(@item.Percentual%)</small></span></div>
+                                <div class="progress-track"><span style="width:@item.Percentual%"></span></div>
+                            </div>
+                        }
+                    </div>
+                }
+            </article>
+
+            <article class="card chart-card neighborhood-card">
+                <div class="card-heading">
+                    <div><h2 class="section-title">Bairros com mais chamados</h2><p class="muted">Cinco maiores volumes no período</p></div>
+                    <a class="text-link" href="ocorrencias">Explorar <span aria-hidden="true">→</span></a>
+                </div>
+                @if (Bairros.Count == 0)
+                {
+                    <p class="empty-inline">Sem registros para este período.</p>
+                }
+                else
+                {
+                    <div class="neighborhood-list">
+                        @foreach (var bairro in Bairros)
+                        {
+                            <div class="neighborhood-row">
+                                <span class="neighborhood-name">@bairro.Nome</span>
+                                <div class="progress-track"><span style="width:@bairro.Percentual%"></span></div>
+                                <strong>@bairro.Total</strong>
+                            </div>
+                        }
+                    </div>
+                }
+            </article>
+
+            <article class="card operational-card">
+                <div class="card-heading"><div><h2 class="section-title">Situação operacional</h2><p class="muted">Status dos atendimentos no período</p></div></div>
+                <div class="status-summary">
+                    <div class="status-line"><span class="status-dot status-open"></span><span>Em andamento</span><strong>@EmAndamento.ToString("N0", PtBr)</strong></div>
+                    <div class="status-line"><span class="status-dot status-done"></span><span>Concluídas</span><strong>@Concluidas.ToString("N0", PtBr)</strong></div>
+                </div>
+                <a class="button button-primary full-button" href="ocorrencias">Abrir lista de ocorrências</a>
+            </article>
+        </div>
+
+        <p class="dashboard-footnote">Indicadores calculados a partir dos dados carregados na base.</p>
+    }
+</section>
+
+@code {
+    private static readonly CultureInfo PtBr = CultureInfo.GetCultureInfo("pt-BR");
+    private static readonly (TipoAgravo Tipo, string Nome)[] TiposAgravo =
+    [
+        (TipoAgravo.Trauma, "Trauma"),
+        (TipoAgravo.Clinico, "Clínico"),
+        (TipoAgravo.Cardiologico, "Cardiológico"),
+        (TipoAgravo.Respiratorio, "Respiratório"),
+        (TipoAgravo.Psiquiatrico, "Psiquiátrico"),
+        (TipoAgravo.Outros, "Outros")
+    ];
+
+    private bool Carregando = true;
+    private string? Erro;
+    private int TotalPeriodo;
+    private int EmAndamento;
+    private int Concluidas;
+    private int AltaGravidade;
+    private double? TempoMedio;
+    private int MaxTendencia = 1;
+    private string DataAtual => DateTime.Now.ToString("dddd, dd 'de' MMMM 'de' yyyy", PtBr);
+    private List<PontoDia> Tendencia = [];
+    private List<ResumoAgravo> Agravos = [];
+    private List<ResumoBairro> Bairros = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var agoraUtc = DateTime.UtcNow;
+            var hojeRecife = agoraUtc.AddHours(-3).Date;
+            var inicioPeriodoUtc = hojeRecife.AddDays(-29).AddHours(3);
+            var inicioTendenciaUtc = hojeRecife.AddDays(-13).AddHours(3);
+
+            var periodo = await Db.Ocorrencias.AsNoTracking()
+                .Where(x => x.DataChamado >= inicioPeriodoUtc && x.DataChamado <= agoraUtc)
+                .ToListAsync();
+
+            TotalPeriodo = periodo.Count;
+            EmAndamento = periodo.Count(x => x.Status == StatusOcorrencia.EmAndamento);
+            Concluidas = periodo.Count(x => x.Status == StatusOcorrencia.Concluida);
+            AltaGravidade = periodo.Count(x => x.Gravidade == Gravidade.Alta);
+            var tempos = periodo.Where(x => x.TempoRespostaMinutos.HasValue).Select(x => x.TempoRespostaMinutos!.Value).ToArray();
+            TempoMedio = tempos.Length > 0 ? tempos.Average() : null;
+
+            var porDia = periodo.Where(x => x.DataChamado >= inicioTendenciaUtc)
+                .GroupBy(x => x.DataChamado.AddHours(-3).Date)
+                .ToDictionary(g => g.Key, g => g.Count());
+            Tendencia = Enumerable.Range(0, 14)
+                .Select(i => hojeRecife.AddDays(i - 13))
+                .Select(d => new PontoDia(d, porDia.GetValueOrDefault(d, 0)))
+                .ToList();
+            MaxTendencia = Math.Max(1, Tendencia.Max(x => x.Total));
+
+            Agravos = TiposAgravo.Select(t => new ResumoAgravo(t.Nome, periodo.Count(x => x.TipoAgravo == t.Tipo), 0))
+                .Where(x => x.Total > 0)
+                .Select(x => x with { Percentual = (int)Math.Round(x.Total * 100d / Math.Max(1, TotalPeriodo)) })
+                .OrderByDescending(x => x.Total)
+                .ToList();
+
+            var bairros = periodo.GroupBy(x => x.Bairro)
+                .Select(g => new ResumoBairro(g.Key, g.Count(), 0))
+                .OrderByDescending(x => x.Total)
+                .Take(5)
+                .ToList();
+            var maiorBairro = Math.Max(1, bairros.Select(x => x.Total).DefaultIfEmpty(1).Max());
+            Bairros = bairros.Select(x => x with { Percentual = (int)Math.Round(x.Total * 100d / maiorBairro) }).ToList();
+        }
+        catch (Exception ex)
+        {
+            Erro = $"Não foi possível carregar os indicadores: {ex.GetBaseException().Message}";
+        }
+        finally
+        {
+            Carregando = false;
+        }
+    }
+
+    private int Altura(int total) => total == 0 ? 2 : Math.Max(8, (int)Math.Round(total * 100d / MaxTendencia));
+
+    private sealed record PontoDia(DateTime Data, int Total);
+    private sealed record ResumoAgravo(string Nome, int Total, int Percentual);
+    private sealed record ResumoBairro(string Nome, int Total, int Percentual);
+}

@@ -1,0 +1,116 @@
+@inherits LayoutComponentBase
+@inject NavigationManager Navegacao
+
+<div class="app-shell">
+    <aside class="sidebar">
+        <a class="brand" href="" aria-label="SAMU DataFlow — Início">
+            <StarOfLife Tamanho="34" />
+            <span class="brand-text">
+                <span>SAMU</span>
+                <span>Data<span class="brand-flow">Flow</span></span>
+            </span>
+        </a>
+
+        <nav class="nav" aria-label="Navegação principal">
+            @foreach (var item in Itens)
+            {
+                <NavLink class="nav-item" href="@item.Rota"
+                         Match="@(item.Rota.Length == 0 ? NavLinkMatch.All : NavLinkMatch.Prefix)">
+                    <Icon Nome="@item.Icone" />
+                    <span>@item.Rotulo</span>
+                </NavLink>
+            }
+        </nav>
+
+        <div class="sidebar-footer">
+            <svg class="skyline" xmlns="http://www.w3.org/2000/svg" width="140" height="32"
+                 viewBox="0 0 160 36" fill="none" stroke="currentColor" stroke-width="1.2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M2 34H158M8 34V22H17V34M17 27H22V34M27 34V13H34V34M34 34V20H40V34M46 34V24A5 5 0 0 1 56 24V34M62 34V9H68V34M68 34V17H76V34M82 34V25H92V34M98 34V15H105V34M105 34V23H113V34M119 34V19H125V34M130 34V6H135V34M135 34V21H143V34M148 34V27H156V34" />
+            </svg>
+            <p class="city">RECIFE - PE</p>
+            <div class="seal">
+                <StarOfLife Tamanho="26" />
+                <span class="seal-text"><small>SAMU</small><strong>192</strong></span>
+            </div>
+        </div>
+    </aside>
+
+    <div class="main">
+        <header class="topbar">
+            <div class="search" role="search">
+                <Icon Nome="search" Tamanho="16" />
+                <input type="text" class="search-input"
+                       placeholder="Buscar por ocorrência, bairro, tipo de agravo..."
+                       aria-label="Buscar"
+                       @bind="termoBusca" @bind:event="oninput"
+                       @onkeydown="AoPressionarTecla" />
+            </div>
+
+            <div class="topbar-right">
+                <button type="button" class="icon-btn" aria-label="Notificações">
+                    <Icon Nome="bell" Tamanho="20" />
+                </button>
+                <div class="user">
+                    <span class="avatar">@Iniciais</span>
+                    <span class="user-info">
+                        <span class="user-name">@UsuarioNome</span>
+                        <span class="user-sector">@UsuarioSetor</span>
+                    </span>
+                    <Icon Nome="chevron-down" Tamanho="16" />
+                </div>
+            </div>
+        </header>
+
+        <main class="content">
+            @Body
+        </main>
+    </div>
+</div>
+
+<div id="blazor-error-ui">
+    Ocorreu um erro inesperado.
+    <a href="." class="reload">Recarregar</a>
+    <span class="dismiss">✕</span>
+</div>
+
+@code {
+    private sealed record ItemMenu(string Rotulo, string Rota, string Icone);
+
+    private static readonly ItemMenu[] Itens =
+    [
+        new("Início", "", "home"),
+        new("Ocorrências", "ocorrencias", "square-plus"),
+        new("Importar dados", "importar", "upload"),
+        new("Mapa", "mapa", "map"),
+        new("Relatórios", "relatorios", "file-text"),
+        new("Base Histórica", "historico", "database"),
+        new("Configurações", "configuracoes", "settings"),
+    ];
+
+    private string termoBusca = "";
+
+    // Identificação genérica: a aplicação ainda não tem autenticação de usuários.
+    private const string UsuarioNome = "Operação SAMU";
+    private const string UsuarioSetor = "Acesso local";
+
+    private static string Iniciais => string.Concat(
+        UsuarioNome.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(p => p.Length > 2)
+            .Take(2)
+            .Select(p => char.ToUpperInvariant(p[0])));
+
+    private void AoPressionarTecla(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") Buscar();
+    }
+
+    private void Buscar()
+    {
+        var termo = termoBusca.Trim();
+        var destino = termo.Length == 0
+            ? "ocorrencias"
+            : $"ocorrencias?busca={Uri.EscapeDataString(termo)}";
+        Navegacao.NavigateTo(destino);
+    }
+}

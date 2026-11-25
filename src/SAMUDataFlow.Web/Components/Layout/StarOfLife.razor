@@ -1,0 +1,19 @@
+<svg class="star-of-life" xmlns="http://www.w3.org/2000/svg" width="@Tamanho" height="@Tamanho"
+     viewBox="0 0 40 40" aria-hidden="true">
+    <g fill="currentColor">
+        <rect x="17" y="2" width="6" height="36" rx="2.5" />
+        <rect x="17" y="2" width="6" height="36" rx="2.5" transform="rotate(60 20 20)" />
+        <rect x="17" y="2" width="6" height="36" rx="2.5" transform="rotate(120 20 20)" />
+    </g>
+    <g fill="none" style="stroke:@Recorte" stroke-width="2" stroke-linecap="round">
+        <path d="M20 9v22" />
+        <path d="M20 13c-4.5 1-4.5 5 0 6s4.5 5 0 6" />
+    </g>
+</svg>
+
+@code {
+    [Parameter] public int Tamanho { get; set; } = 36;
+
+    /// <summary>Cor do bastão e da serpente (deve ser a cor do fundo atrás do ícone).</summary>
+    [Parameter] public string Recorte { get; set; } = "var(--bg-sidebar)";
+}

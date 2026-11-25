@@ -1,0 +1,450 @@
+@page "/importar"
+@using System.Globalization
+@using System.Text
+@using System.Text.RegularExpressions
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.EntityFrameworkCore
+@using SAMUDataFlow.Domain.Entidades
+@using SAMUDataFlow.Domain.Enums
+@using SAMUDataFlow.Infrastructure.Persistencia
+@inject SamuDbContext Db
+
+<PageTitle>Importar dados — SAMU DataFlow</PageTitle>
+
+<section class="page import-page">
+    <header class="page-heading">
+        <div>
+            <p class="eyebrow">ENTRADA DE DADOS</p>
+            <h1>Importar dados</h1>
+            <p class="page-subtitle">Importe ocorrências do script PostgreSQL.</p>
+        </div>
+        <a class="button button-secondary" href="ocorrencias">Ver ocorrências</a>
+    </header>
+
+    <div class="notice notice-privacy">
+        <strong>O script SQL não será executado.</strong>
+        <span>O importador lê somente os INSERTs da tabela samu_ocorrencia_bronze. Comandos de criação, alteração ou remoção são ignorados. Dados pessoais e clínicos não são copiados para o painel.</span>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(MensagemErro))
+    {
+        <div class="notice notice-error" role="alert">@MensagemErro</div>
+    }
+    @if (!string.IsNullOrWhiteSpace(MensagemSucesso))
+    {
+        <div class="notice notice-success" role="status">@MensagemSucesso</div>
+    }
+
+    <article class="card import-card">
+        <div class="import-step">
+            <span>1</span>
+            <div>
+                <h2 class="section-title">Selecione o arquivo PostgreSQL</h2>
+                <p class="muted">Escolha somente samu_mock_postgres.sql. As versões DuckDB e Oracle não são compatíveis.</p>
+                @if (RegistrosAtuais > 0)
+                {
+                    <p class="current-record-count">A base contém atualmente @RegistrosAtuais.ToString("N0", CulturaPtBr) ocorrência(s).</p>
+                }
+            </div>
+        </div>
+
+        <label class="folder-dropzone">
+            <InputFile class="folder-input" OnChange="SelecionarArquivoAsync" accept=".sql,text/plain" />
+            <span class="upload-icon"><Icon Nome="upload" Tamanho="24" /></span>
+            <strong>Escolha o arquivo samu_mock_postgres.sql</strong>
+            <span>Arquivo SQL PostgreSQL · até 50 MB</span>
+        </label>
+
+        @if (!string.IsNullOrWhiteSpace(NomeArquivo))
+        {
+            <div class="selected-files">
+                <div class="file-list">
+                    <div class="file-chip"><span class="file-chip-icon">SQL</span><span>@NomeArquivo</span><small>@RegistrosEncontrados.ToString("N0", CulturaPtBr) ocorrências encontradas</small></div>
+                </div>
+            </div>
+        }
+    </article>
+
+    @if (RegistrosEncontrados > 0)
+    {
+        <article class="card import-card">
+            <div class="import-step">
+                <span>2</span>
+                <div>
+                    <h2 class="section-title">Confira antes de importar</h2>
+                    <p class="muted">Serão usados código, data de criação, região/município, bairro, tipo de agravo, classificação de risco e indicação de finalização. Nome, telefone, endereço, queixa e dados clínicos serão descartados.</p>
+                </div>
+            </div>
+            <div class="mapping-note">Prontos para importar: @OcorrenciasValidas.Count.ToString("N0", CulturaPtBr). · Ignorados por dados incompletos ou não reconhecidos: @RegistrosInvalidos.ToString("N0", CulturaPtBr) · Duplicados na base serão ignorados.</div>
+            <label class="replace-option">
+                <input type="checkbox" @bind="SubstituirBase" />
+                <span><strong>Substituir as ocorrências atuais</strong><small>Apaga todas as ocorrências do painel e carrega as válidas deste arquivo. Faça isso somente se deseja trocar a base inteira.</small></span>
+            </label>
+            @if (SubstituirBase)
+            {
+                <div class="notice notice-error replace-warning">A base atual será substituída após uma confirmação adicional.</div>
+            }
+            <div class="import-actions">
+                <button class="button button-primary" type="button" disabled="@(OcorrenciasValidas.Count == 0 || Importando)" @onclick="ImportarAsync">
+                    @(Importando ? "Importando…" : SubstituirBase ? "Revisar substituição" : "Importar dados")
+                </button>
+            </div>
+        </article>
+    }
+
+    @if (MostrarConfirmacaoSubstituicao)
+    {
+        <div class="modal-backdrop" role="presentation">
+            <section class="dialog-card" role="alertdialog" aria-modal="true" aria-labelledby="replace-title">
+                <div class="dialog-heading"><div><p class="eyebrow">CONFIRMAÇÃO NECESSÁRIA</p><h2 id="replace-title">Substituir a base atual?</h2></div><button type="button" class="dialog-close" aria-label="Cancelar" @onclick="CancelarSubstituicao">×</button></div>
+                <p class="dialog-intro">Isso apagará as ocorrências atualmente no painel e gravará @OcorrenciasValidas.Count.ToString("N0", CulturaPtBr) registros válidos do arquivo SQL. O script não será executado no banco.</p>
+                <div class="dialog-actions"><button type="button" class="button button-secondary" @onclick="CancelarSubstituicao">Cancelar</button><button type="button" class="button button-primary" @onclick="ConfirmarSubstituicaoAsync">Apagar base atual e importar</button></div>
+            </section>
+        </div>
+    }
+</section>
+
+@code {
+    private const long MaxBytesPorArquivo = 50 * 1024 * 1024;
+    private static readonly CultureInfo CulturaPtBr = CultureInfo.GetCultureInfo("pt-BR");
+    private string? NomeArquivo;
+    private string? MensagemErro;
+    private string? MensagemSucesso;
+    private List<Ocorrencia> OcorrenciasValidas = [];
+    private int RegistrosEncontrados;
+    private int RegistrosInvalidos;
+    private int RegistrosAtuais;
+    private bool Importando;
+    private bool SubstituirBase;
+    private bool MostrarConfirmacaoSubstituicao;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { RegistrosAtuais = await Db.Ocorrencias.CountAsync(); }
+        catch { MensagemErro = "Não foi possível consultar a base de ocorrências. Confira a conexão com o banco."; }
+    }
+
+    private async Task SelecionarArquivoAsync(InputFileChangeEventArgs e)
+    {
+        NomeArquivo = null;
+        OcorrenciasValidas.Clear();
+        RegistrosEncontrados = 0;
+        RegistrosInvalidos = 0;
+        MensagemErro = null;
+        MensagemSucesso = null;
+        SubstituirBase = false;
+        try
+        {
+            var arquivo = e.File;
+            if (!Path.GetFileName(arquivo.Name).Equals("samu_mock_postgres.sql", StringComparison.OrdinalIgnoreCase))
+            {
+                MensagemErro = "Selecione o arquivo samu_mock_postgres.sql. Os arquivos DuckDB e Oracle não são compatíveis com este importador.";
+                return;
+            }
+            if (arquivo.Size <= 0 || arquivo.Size > MaxBytesPorArquivo)
+            {
+                MensagemErro = "O arquivo está vazio ou ultrapassa o limite de 50 MB.";
+                return;
+            }
+
+            await using var stream = arquivo.OpenReadStream(MaxBytesPorArquivo);
+            using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+            var sql = await reader.ReadToEndAsync();
+            var resultado = LeitorSqlOcorrencias.Ler(sql);
+            if (resultado.Total == 0)
+            {
+                MensagemErro = "Não encontrei INSERTs reconhecidos para samu_ocorrencia_bronze. Confirme que escolheu a versão PostgreSQL correta.";
+                return;
+            }
+            NomeArquivo = Path.GetFileName(arquivo.Name);
+            RegistrosEncontrados = resultado.Total;
+            RegistrosInvalidos = resultado.Invalidos;
+            OcorrenciasValidas = resultado.Ocorrencias;
+        }
+        catch
+        {
+            MensagemErro = "Não foi possível ler o arquivo. Nenhum comando SQL foi executado e nenhum dado foi alterado.";
+        }
+    }
+
+    private async Task ImportarAsync()
+    {
+        if (OcorrenciasValidas.Count == 0 || Importando) return;
+        if (SubstituirBase) { MostrarConfirmacaoSubstituicao = true; return; }
+        await ExecutarImportacaoAsync();
+    }
+
+    private void CancelarSubstituicao() => MostrarConfirmacaoSubstituicao = false;
+    private async Task ConfirmarSubstituicaoAsync()
+    {
+        MostrarConfirmacaoSubstituicao = false;
+        await ExecutarImportacaoAsync();
+    }
+
+    private async Task ExecutarImportacaoAsync()
+    {
+        if (OcorrenciasValidas.Count == 0 || Importando) return;
+        Importando = true;
+        MensagemErro = null;
+        MensagemSucesso = null;
+        try
+        {
+            var codigosExistentes = SubstituirBase
+                ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                : (await Db.Ocorrencias.AsNoTracking().Select(x => x.CodigoExterno).ToListAsync()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var lote = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var novos = OcorrenciasValidas.Where(x => lote.Add(x.CodigoExterno) && !codigosExistentes.Contains(x.CodigoExterno)).ToList();
+            var duplicados = OcorrenciasValidas.Count - novos.Count;
+            if (SubstituirBase && novos.Count == 0)
+            {
+                MensagemErro = "Não substituí a base porque não há registros válidos para gravar.";
+                return;
+            }
+            await using var transacao = await Db.Database.BeginTransactionAsync();
+            if (SubstituirBase) await Db.Ocorrencias.ExecuteDeleteAsync();
+            if (novos.Count > 0)
+            {
+                Db.Ocorrencias.AddRange(novos);
+                await Db.SaveChangesAsync();
+            }
+            await transacao.CommitAsync();
+            RegistrosAtuais = await Db.Ocorrencias.CountAsync();
+            MensagemSucesso = SubstituirBase
+                ? $"Base substituída. {novos.Count:N0} ocorrência(s) importada(s); {RegistrosInvalidos + duplicados:N0} ignorada(s)."
+                : $"Importação concluída. {novos.Count:N0} ocorrência(s) importada(s); {RegistrosInvalidos + duplicados:N0} ignorada(s).";
+            SubstituirBase = false;
+        }
+        catch
+        {
+            MensagemErro = "A importação falhou e foi revertida. Confira a conexão com o banco; nenhum conteúdo do arquivo foi incluído nesta mensagem.";
+        }
+        finally { Importando = false; }
+    }
+
+    private sealed record ResultadoLeitura(List<Ocorrencia> Ocorrencias, int Total, int Invalidos);
+
+    private static class LeitorSqlOcorrencias
+    {
+        private static readonly Regex InsertRegex = new("^\\s*INSERT\\s+INTO\\s+(?:(?:\\\"?public\\\"?)\\s*\\.\\s*)?\\\"?samu_ocorrencia_bronze\\\"?\\s*\\((?<cols>.*?)\\)\\s*VALUES\\s*(?<values>.*)$", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.CultureInvariant);
+
+        public static ResultadoLeitura Ler(string sql)
+        {
+            var ocorrencias = new List<Ocorrencia>();
+            var total = 0;
+            var invalidos = 0;
+            foreach (var statement in SepararComandos(sql))
+            {
+                var insert = InsertRegex.Match(RemoverComentariosIniciais(statement));
+                if (!insert.Success) continue;
+                var colunas = DividirLista(insert.Groups["cols"].Value).Select(DesquotarIdentificador).Select(Normalizar).ToArray();
+                var rows = LerTuplas(insert.Groups["values"].Value);
+                foreach (var row in rows)
+                {
+                    total++;
+                    if (row.Count != colunas.Length) { invalidos++; continue; }
+                    var dados = colunas.Select((coluna, i) => (coluna, valor: LerLiteral(row[i])))
+                        .ToDictionary(x => x.coluna, x => x.valor, StringComparer.Ordinal);
+                    if (Converter(dados) is { } ocorrencia) ocorrencias.Add(ocorrencia);
+                    else invalidos++;
+                }
+            }
+            return new(ocorrencias, total, invalidos);
+        }
+
+        private static Ocorrencia? Converter(IReadOnlyDictionary<string, string?> d)
+        {
+            string? Get(string nome) => d.GetValueOrDefault(Normalizar(nome));
+            var codigo = Get("OCORRÊNCIA");
+            var bairro = Get("BAIRRO");
+            var distrito = Get("REGIÃO");
+            if (string.IsNullOrWhiteSpace(distrito)) distrito = Get("MUNICÍPIO");
+            var dataTexto = Get("DATA/HORA CRIAÇÃO");
+            if (string.IsNullOrWhiteSpace(codigo) || string.IsNullOrWhiteSpace(bairro) || string.IsNullOrWhiteSpace(distrito) || !TentarData(dataTexto, out var chamado)) return null;
+
+            var tipoTexto = Get("CÓD./DESCRIÇÃO TIPO") ?? "";
+            var subtipo = Get("CÓD./DESCRIÇÃO SUBTIPO") ?? "";
+            if (!TentarTipo(tipoTexto, out var tipo) && !TentarTipo(subtipo, out tipo)) return null;
+            if (!TentarGravidade(Get("CLASSIFICAÇÃO DE RISCO"), out var gravidade)) return null;
+
+            var status = string.IsNullOrWhiteSpace(Get("FINALIZAÇÃO"))
+                ? StatusOcorrencia.EmAndamento
+                : StatusOcorrencia.Concluida;
+            try { return Ocorrencia.Criar(codigo, chamado, null, distrito, bairro, tipo, gravidade, status); }
+            catch { return null; }
+        }
+
+        private static bool TentarTipo(string texto, out TipoAgravo tipo)
+        {
+            var chave = Normalizar(texto);
+            if (chave.Contains("TRAUMA") || chave.Contains("ACIDENTE") || chave.Contains("FRATURA")) tipo = TipoAgravo.Trauma;
+            else if (chave.Contains("CARDIO") || chave.Contains("INFART") || chave.Contains("DOR TORAC")) tipo = TipoAgravo.Cardiologico;
+            else if (chave.Contains("RESPIR") || chave.Contains("DISPNEIA") || chave.Contains("ASFIXIA")) tipo = TipoAgravo.Respiratorio;
+            else if (chave.Contains("PSIQUI") || chave.Contains("SUICID") || chave.Contains("SURTO")) tipo = TipoAgravo.Psiquiatrico;
+            else if (chave.Contains("CLIN") || chave.Contains("FEBRE") || chave.Contains("CONVULS")) tipo = TipoAgravo.Clinico;
+            else if (chave.Contains("OUTRO")) tipo = TipoAgravo.Outros;
+            else { tipo = default; return false; }
+            return true;
+        }
+
+        private static bool TentarGravidade(string? texto, out Gravidade gravidade)
+        {
+            var chave = Normalizar(texto ?? "");
+            if (chave.Contains("VERMELH") || chave.Contains("LARANJ") || chave.Contains("ALTA") || chave.Contains("ALTO")) gravidade = Gravidade.Alta;
+            else if (chave.Contains("AMAREL") || chave.Contains("MEDIA") || chave.Contains("MODERAD")) gravidade = Gravidade.Media;
+            else if (chave.Contains("VERDE") || chave.Contains("AZUL") || chave.Contains("BAIXA") || chave.Contains("BAIXO")) gravidade = Gravidade.Baixa;
+            else { gravidade = default; return false; }
+            return true;
+        }
+
+        private static bool TentarData(string? texto, out DateTime utc)
+        {
+            utc = default;
+            if (string.IsNullOrWhiteSpace(texto)) return false;
+            if (DateTimeOffset.TryParse(texto, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var offset))
+            {
+                var hasZone = texto.EndsWith("Z", StringComparison.OrdinalIgnoreCase) || Regex.IsMatch(texto, @"[+-]\d{2}:?\d{2}$");
+                utc = hasZone ? offset.UtcDateTime : DateTime.SpecifyKind(offset.DateTime.AddHours(3), DateTimeKind.Utc);
+                return true;
+            }
+            return false;
+        }
+
+        private static IEnumerable<string> SepararComandos(string sql)
+        {
+            var sb = new StringBuilder();
+            var quote = false;
+            var lineComment = false;
+            var blockComment = false;
+            for (var i = 0; i < sql.Length; i++)
+            {
+                var c = sql[i];
+                var next = i + 1 < sql.Length ? sql[i + 1] : '\0';
+                if (lineComment) { sb.Append(c); if (c == '\n') lineComment = false; continue; }
+                if (blockComment) { sb.Append(c); if (c == '*' && next == '/') { sb.Append(next); i++; blockComment = false; } continue; }
+                if (quote)
+                {
+                    sb.Append(c);
+                    if (c == '\'' && next == '\'') { sb.Append(next); i++; }
+                    else if (c == '\'') quote = false;
+                    continue;
+                }
+                if (c == '-' && next == '-') { sb.Append(c).Append(next); i++; lineComment = true; continue; }
+                if (c == '/' && next == '*') { sb.Append(c).Append(next); i++; blockComment = true; continue; }
+                if (c == '\'') { quote = true; sb.Append(c); continue; }
+                if (c == ';') { yield return sb.ToString(); sb.Clear(); continue; }
+                sb.Append(c);
+            }
+            if (sb.Length > 0) yield return sb.ToString();
+        }
+
+        private static string RemoverComentariosIniciais(string s)
+        {
+            var atual = s.TrimStart();
+            while (atual.StartsWith("--", StringComparison.Ordinal))
+            {
+                var fim = atual.IndexOf('\n');
+                if (fim < 0) return "";
+                atual = atual[(fim + 1)..].TrimStart();
+            }
+            return atual;
+        }
+
+        private static List<string> DividirLista(string s) => DividirNivelSuperior(s, ',');
+
+        private static List<string> DividirNivelSuperior(string s, char separador)
+        {
+            var result = new List<string>();
+            var sb = new StringBuilder();
+            var quote = false;
+            var depth = 0;
+            for (var i = 0; i < s.Length; i++)
+            {
+                var c = s[i];
+                if (quote)
+                {
+                    sb.Append(c);
+                    if (c == '"' && i + 1 < s.Length && s[i + 1] == '"') { sb.Append(s[++i]); }
+                    else if (c == '"') quote = false;
+                }
+                else if (c == '"') { quote = true; sb.Append(c); }
+                else if (c == '(') { depth++; sb.Append(c); }
+                else if (c == ')') { depth--; sb.Append(c); }
+                else if (c == separador && depth == 0) { result.Add(sb.ToString().Trim()); sb.Clear(); }
+                else sb.Append(c);
+            }
+            if (sb.Length > 0) result.Add(sb.ToString().Trim());
+            return result;
+        }
+
+        private static List<List<string>> LerTuplas(string s)
+        {
+            var result = new List<List<string>>();
+            var quote = false;
+            var depth = 0;
+            var inicio = -1;
+            for (var i = 0; i < s.Length; i++)
+            {
+                var c = s[i];
+                if (quote)
+                {
+                    if (c == '\'' && i + 1 < s.Length && s[i + 1] == '\'') i++;
+                    else if (c == '\'') quote = false;
+                    continue;
+                }
+                if (c == '\'') { quote = true; continue; }
+                if (c == '(') { if (depth++ == 0) inicio = i + 1; }
+                else if (c == ')' && --depth == 0 && inicio >= 0)
+                {
+                    result.Add(DividirValores(s[inicio..i]));
+                    inicio = -1;
+                }
+            }
+            return result;
+        }
+
+        private static List<string> DividirValores(string s)
+        {
+            var result = new List<string>();
+            var sb = new StringBuilder();
+            var quote = false;
+            var depth = 0;
+            for (var i = 0; i < s.Length; i++)
+            {
+                var c = s[i];
+                if (quote)
+                {
+                    sb.Append(c);
+                    if (c == '\'' && i + 1 < s.Length && s[i + 1] == '\'') sb.Append(s[++i]);
+                    else if (c == '\'') quote = false;
+                }
+                else if (c == '\'') { quote = true; sb.Append(c); }
+                else if (c == '(') { depth++; sb.Append(c); }
+                else if (c == ')') { depth--; sb.Append(c); }
+                else if (c == ',' && depth == 0) { result.Add(sb.ToString().Trim()); sb.Clear(); }
+                else sb.Append(c);
+            }
+            result.Add(sb.ToString().Trim());
+            return result;
+        }
+
+        private static string? LerLiteral(string s)
+        {
+            var valor = Regex.Replace(s.Trim(), @"^(?:TIMESTAMP|DATE)\s+", "", RegexOptions.IgnoreCase).Trim();
+            if (valor.Equals("NULL", StringComparison.OrdinalIgnoreCase)) return null;
+            if (valor.StartsWith("E'", StringComparison.OrdinalIgnoreCase)) valor = valor[1..];
+            var cast = valor.IndexOf("::", StringComparison.Ordinal);
+            if (cast >= 0) valor = valor[..cast].Trim();
+            if (valor.Length >= 2 && valor[0] == '\'' && valor[^1] == '\'') return valor[1..^1].Replace("''", "'");
+            return valor;
+        }
+
+        private static string DesquotarIdentificador(string s)
+        {
+            var value = s.Trim();
+            if (value.Length >= 2 && value[0] == '"' && value[^1] == '"') value = value[1..^1].Replace("\"\"", "\"");
+            return value;
+        }
+
+        private static string Normalizar(string s) => new string(s.Normalize(NormalizationForm.FormD).Where(c => CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark && char.IsLetterOrDigit(c)).Select(char.ToUpperInvariant).ToArray());
+    }
+}
