@@ -1,9 +1,6 @@
-/* Design tokens do SAMU DataFlow.
-   Valores medidos por amostragem na imagem de referência (tela Início). */
+/* Design tokens do SAMU DataFlow. */
 :root {
   color-scheme: dark;
-
-  /* Superfícies */
   --bg-app: #050F19;
   --bg-glow: #0F2240;
   --bg-sidebar: #081522;
@@ -11,20 +8,14 @@
   --bg-hero: #06111D;
   --bg-input: #11233B;
   --border: #142131;
-
-  /* Texto */
   --text: #F3F5F9;
   --text-muted: #8A94A6;
-
-  /* Destaque (vermelho) */
   --accent: #E5384B;
   --accent-strong: #B3202F;
   --accent-deep: #4A1620;
   --accent-bar: #900F21;
   --nav-active-from: #8A2A39;
   --nav-active-to: #35202C;
-
-  /* Semânticas e categorias */
   --positive: #22C55E;
   --negative: #EF4444;
   --info: #3B82F6;
@@ -32,14 +23,36 @@
   --warning: #F5A623;
   --teal: #2DBBA0;
   --pink: #F4A7B3;
-
-  /* Medidas */
   --radius-card: 12px;
   --radius-control: 8px;
   --gap: 16px;
   --page-padding: 24px;
   --sidebar-width: 208px;
   --topbar-height: 66px;
-
   --font: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+:root[data-theme="claro"] {
+  color-scheme: light;
+  --bg-app: #F3F6FA;
+  --bg-glow: #FFFFFF;
+  --bg-sidebar: #FFFFFF;
+  --bg-card: #FFFFFF;
+  --bg-hero: #FFFFFF;
+  --bg-input: #F7F9FC;
+  --border: #D8E0EA;
+  --text: #1C2736;
+  --text-muted: #65748A;
+  --accent: #C6283B;
+  --accent-strong: #A51E30;
+  --accent-deep: #FCE8EB;
+  --accent-bar: #C6283B;
+  --nav-active-from: #FBE8EB;
+  --nav-active-to: #F4F6FA;
+  --positive: #16834A;
+  --negative: #C62828;
+  --info: #2563A8;
+  --info-soft: #2767A8;
+  --warning: #9A5B00;
+  --teal: #087F70;
+  --pink: #9D3D64;
 }

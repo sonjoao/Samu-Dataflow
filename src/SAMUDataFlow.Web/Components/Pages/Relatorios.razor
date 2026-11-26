@@ -1,4 +1,100 @@
 @page "/relatorios"
+@using System.Globalization
+@using Microsoft.EntityFrameworkCore
+@using SAMUDataFlow.Domain.Comum
+@using SAMUDataFlow.Domain.Enums
+@using SAMUDataFlow.Infrastructure.Persistencia
+@inject SamuDbContext Db
 
 <PageTitle>Relatórios — SAMU DataFlow</PageTitle>
-<PaginaEmConstrucao Titulo="Relatórios" Descricao="Gráficos e indicadores com filtros." />
+
+<section class="page report-page">
+    <header class="page-heading">
+        <div><p class="eyebrow">ANÁLISE OPERACIONAL</p><h1>Relatórios</h1><p class="page-subtitle">Indicadores e distribuição dos atendimentos no período selecionado.</p></div>
+        <a class="button button-secondary" href="@UrlExportacao"><Icon Nome="file-text" Tamanho="15" /> Baixar relatório CSV</a>
+    </header>
+    <div class="card report-filter-card">
+        <div class="report-filter-fields">
+            <label class="filter-field"><span>De</span><input type="date" @bind="DataInicio" @bind:format="yyyy-MM-dd" /></label>
+            <label class="filter-field"><span>Até</span><input type="date" @bind="DataFim" @bind:format="yyyy-MM-dd" /></label>
+            <button class="button button-primary" type="button" disabled="@Carregando" @onclick="CarregarAsync">@(Carregando ? "Atualizando…" : "Aplicar período")</button>
+        </div>
+        @if (!string.IsNullOrWhiteSpace(Erro)) { <div class="notice notice-error" role="alert">@Erro</div> }
+        <p class="muted report-privacy-note">O CSV inclui dados operacionais e não exporta anotações clínicas ou informação de acompanhante.</p>
+    </div>
+    @if (Carregando) { <div class="card loading-card">Carregando relatório…</div> }
+    else if (string.IsNullOrWhiteSpace(Erro))
+    {
+        <div class="metric-grid">
+            <article class="metric-card"><div class="metric-top"><span class="metric-label">Atendimentos</span><span class="metric-mark mark-red">TOTAL</span></div><strong class="metric-value">@Total.ToString("N0", PtBr)</strong><span class="metric-note">no período selecionado</span></article>
+            <article class="metric-card"><div class="metric-top"><span class="metric-label">Concluídos</span><span class="metric-mark mark-teal">OK</span></div><strong class="metric-value">@Concluidas.ToString("N0", PtBr)</strong><span class="metric-note">ocorrências finalizadas</span></article>
+            <article class="metric-card"><div class="metric-top"><span class="metric-label">Alta gravidade</span><span class="metric-mark mark-pink">!</span></div><strong class="metric-value">@AltaGravidade.ToString("N0", PtBr)</strong><span class="metric-note">classificadas como alta</span></article>
+            <article class="metric-card"><div class="metric-top"><span class="metric-label">Resposta média</span><span class="metric-mark mark-amber">MIN</span></div><strong class="metric-value">@(TempoMedio?.ToString("N1", PtBr) ?? "—")<small> min</small></strong><span class="metric-note">chamado até chegada</span></article>
+        </div>
+        @if (Total == 0) { <div class="card report-empty"><strong>Nenhum atendimento neste período.</strong><span>Altere as datas ou importe registros para gerar indicadores.</span></div> }
+        else
+        {
+            <div class="report-grid">
+                <article class="card report-card"><div class="card-heading"><div><h2 class="section-title">Por tipo de agravo</h2><p class="muted">Participação no total do período</p></div></div>
+                    <div class="report-bars">@foreach (var item in PorAgravo) { <div class="report-bar-row"><div class="report-bar-label"><span>@item.Nome</span><strong>@item.Total.ToString("N0", PtBr) <small>(@item.Percentual%)</small></strong></div><div class="report-bar-track"><span style="width:@(item.Percentual)%"></span></div></div> }</div>
+                </article>
+                <article class="card report-card"><div class="card-heading"><div><h2 class="section-title">Por status</h2><p class="muted">Situação dos atendimentos</p></div></div>
+                    <div class="report-bars">@foreach (var item in PorStatus) { <div class="report-bar-row"><div class="report-bar-label"><span>@item.Nome</span><strong>@item.Total.ToString("N0", PtBr) <small>(@item.Percentual%)</small></strong></div><div class="report-bar-track"><span style="width:@(item.Percentual)%"></span></div></div> }</div>
+                </article>
+                <article class="card report-card report-wide"><div class="card-heading"><div><h2 class="section-title">Bairros com mais atendimentos</h2><p class="muted">Principais localidades no período</p></div></div>
+                    <div class="report-table-wrap"><table class="report-table"><thead><tr><th>Bairro</th><th>Ocorrências</th><th>Participação</th></tr></thead>
+                        <tbody>@foreach (var item in PorBairro) { <tr><td>@item.Nome</td><td>@item.Total.ToString("N0", PtBr)</td><td>@item.Percentual%</td></tr> }</tbody>
+                    </table></div>
+                </article>
+            </div>
+        }
+    }
+</section>
+
+@code {
+    private static readonly CultureInfo PtBr = CultureInfo.GetCultureInfo("pt-BR");
+    private DateTime DataInicio = DateTime.Today.AddDays(-29);
+    private DateTime DataFim = DateTime.Today;
+    private bool Carregando = true;
+    private string? Erro;
+    private int Total;
+    private int Concluidas;
+    private int AltaGravidade;
+    private double? TempoMedio;
+    private List<ItemRelatorio> PorAgravo = [];
+    private List<ItemRelatorio> PorStatus = [];
+    private List<ItemRelatorio> PorBairro = [];
+    private string UrlExportacao => $"/relatorios/exportar?de={DataInicio:yyyy-MM-dd}&ate={DataFim:yyyy-MM-dd}";
+
+    protected override Task OnInitializedAsync() => CarregarAsync();
+
+    private async Task CarregarAsync()
+    {
+        Carregando = true;
+        Erro = null;
+        try
+        {
+            if (DataInicio.Date > DataFim.Date) { Erro = "A data inicial deve ser anterior ou igual à data final."; return; }
+            var inicioUtc = DateTime.SpecifyKind(DataInicio.Date.AddHours(3), DateTimeKind.Utc);
+            var fimUtc = DateTime.SpecifyKind(DataFim.Date.AddDays(1).AddHours(3), DateTimeKind.Utc);
+            var lista = await Db.Ocorrencias.AsNoTracking().Where(x => x.DataChamado >= inicioUtc && x.DataChamado < fimUtc).ToListAsync();
+            Total = lista.Count;
+            Concluidas = lista.Count(x => x.Status == StatusOcorrencia.Concluida);
+            AltaGravidade = lista.Count(x => x.Gravidade == Gravidade.Alta);
+            var tempos = lista.Where(x => x.TempoRespostaMinutos.HasValue).Select(x => x.TempoRespostaMinutos!.Value).ToArray();
+            TempoMedio = tempos.Length > 0 ? tempos.Average() : null;
+            PorAgravo = Agrupar(lista, x => x.TipoAgravo.Rotulo(), Total);
+            PorStatus = Agrupar(lista, x => x.Status.Rotulo(), Total);
+            PorBairro = Agrupar(lista, x => x.Bairro, Total).Take(10).ToList();
+        }
+        catch (Exception ex) { Erro = $"Não foi possível carregar o relatório: {ex.GetBaseException().Message}"; }
+        finally { Carregando = false; }
+    }
+
+    private static List<ItemRelatorio> Agrupar<T>(IEnumerable<T> registros, Func<T, string> rotulo, int total) =>
+        registros.GroupBy(rotulo).Select(grupo => new ItemRelatorio(grupo.Key, grupo.Count(),
+            total == 0 ? 0 : (int)Math.Round(grupo.Count() * 100d / total)))
+            .OrderByDescending(item => item.Total).ToList();
+
+    private sealed record ItemRelatorio(string Nome, int Total, int Percentual);
+}

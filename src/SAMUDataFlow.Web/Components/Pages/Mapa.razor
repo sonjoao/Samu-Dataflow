@@ -1,4 +1,131 @@
 @page "/mapa"
+@using System.Globalization
+@using Microsoft.EntityFrameworkCore
+@using SAMUDataFlow.Infrastructure.Persistencia
+@inject SamuDbContext Db
 
 <PageTitle>Mapa — SAMU DataFlow</PageTitle>
-<PaginaEmConstrucao Titulo="Mapa" Descricao="Mapa interativo das ocorrências." />
+
+<section class="page map-page">
+    <header class="page-heading">
+        <div><p class="eyebrow">DISTRIBUIÇÃO GEOGRÁFICA</p><h1>Mapa de ocorrências</h1><p class="page-subtitle">Visualize os atendimentos que possuem coordenadas registradas.</p></div>
+        <a class="button button-secondary" href="ocorrencias">Consultar registros <span aria-hidden="true">→</span></a>
+    </header>
+    <div class="card map-filter-card">
+        <div class="report-filter-fields">
+            <label class="filter-field"><span>De</span><input type="date" @bind="DataInicio" @bind:format="yyyy-MM-dd" /></label>
+            <label class="filter-field"><span>Até</span><input type="date" @bind="DataFim" @bind:format="yyyy-MM-dd" /></label>
+            <button class="button button-primary" type="button" disabled="@Carregando" @onclick="CarregarAsync">@(Carregando ? "Atualizando…" : "Aplicar período")</button>
+        </div>
+        @if (!string.IsNullOrWhiteSpace(Erro)) { <div class="notice notice-error" role="alert">@Erro</div> }
+    </div>
+    @if (Carregando) { <div class="card loading-card">Carregando coordenadas…</div> }
+    else if (string.IsNullOrWhiteSpace(Erro))
+    {
+        <div class="metric-grid map-metrics">
+            <article class="metric-card"><div class="metric-top"><span class="metric-label">Ocorrências no período</span><span class="metric-mark mark-red">TOTAL</span></div><strong class="metric-value">@TotalPeriodo.ToString("N0", PtBr)</strong><span class="metric-note">atendimentos registrados</span></article>
+            <article class="metric-card"><div class="metric-top"><span class="metric-label">Com coordenadas</span><span class="metric-mark mark-teal">GPS</span></div><strong class="metric-value">@TotalCoordenadas.ToString("N0", PtBr)</strong><span class="metric-note">atendimentos geolocalizados</span></article>
+            <article class="metric-card"><div class="metric-top"><span class="metric-label">Bairros</span><span class="metric-mark mark-amber">LOC</span></div><strong class="metric-value">@TotalBairros.ToString("N0", PtBr)</strong><span class="metric-note">com registros no período</span></article>
+            <article class="metric-card"><div class="metric-top"><span class="metric-label">Sem coordenadas</span><span class="metric-mark mark-pink">—</span></div><strong class="metric-value">@SemCoordenadas.ToString("N0", PtBr)</strong><span class="metric-note">latitude/longitude não informadas</span></article>
+        </div>
+        <div class="map-layout">
+            <article class="card map-card">
+                <div class="card-heading"><div><h2 class="section-title">Pontos registrados</h2><p class="muted">Os círculos agrupam coordenadas próximas; passe o cursor para ver a quantidade.</p></div><span class="map-legend"><i></i> Atendimento</span></div>
+                @if (Marcadores.Count == 0) { <div class="map-empty"><strong>Não há coordenadas para exibir.</strong><span>Os atendimentos continuam disponíveis por bairro. Coordenadas são opcionais no cadastro.</span></div> }
+                else
+                {
+                    <div class="map-plot-wrap">
+                        <svg class="map-plot" viewBox="0 0 800 480" role="img" aria-label="Distribuição geográfica das ocorrências por longitude e latitude">
+                            <rect x="44" y="28" width="720" height="390" rx="12" class="map-plot-bg" />
+                            @for (var grade = 0; grade <= 4; grade++)
+                            {
+                                var x = 44 + grade * 180;
+                                var y = 28 + grade * 97.5;
+                                <line x1="@x" y1="28" x2="@x" y2="418" class="map-grid-line" />
+                                <line x1="44" y1="@y" x2="764" y2="@y" class="map-grid-line" />
+                            }
+                            @foreach (var m in Marcadores)
+                            {
+                                <circle cx="@(X(m.Longitude).ToString("F2", CultureInfo.InvariantCulture))" cy="@(Y(m.Latitude).ToString("F2", CultureInfo.InvariantCulture))" r="@(Raio(m.Total).ToString("F1", CultureInfo.InvariantCulture))" class="map-marker">
+                                    <title>@m.Total atendimento(s) em @m.Latitude.ToString("F4", PtBr), @m.Longitude.ToString("F4", PtBr)</title>
+                                </circle>
+                            }
+                        </svg>
+                    </div>
+                    <div class="map-axes"><span>Longitude (oeste): @MinLongitude.ToString("F3", PtBr) a @MaxLongitude.ToString("F3", PtBr)</span><span>Latitude (sul): @MinLatitude.ToString("F3", PtBr) a @MaxLatitude.ToString("F3", PtBr)</span></div>
+                }
+            </article>
+            <aside class="card map-side-card">
+                <div class="card-heading"><div><h2 class="section-title">Por bairro</h2><p class="muted">Mais atendimentos no período</p></div></div>
+                @if (PorBairro.Count == 0) { <p class="empty-inline">Nenhuma ocorrência neste período.</p> }
+                else { <ol class="map-neighborhood-list">@foreach (var item in PorBairro) { <li><span>@item.Nome</span><strong>@item.Total.ToString("N0", PtBr)</strong></li> }</ol> }
+            </aside>
+        </div>
+        <p class="map-footnote">Exibição baseada somente em latitude e longitude registradas; coordenadas ausentes não são estimadas.</p>
+    }
+</section>
+
+@code {
+    private static readonly CultureInfo PtBr = CultureInfo.GetCultureInfo("pt-BR");
+    private DateTime DataInicio = DateTime.Today.AddDays(-29);
+    private DateTime DataFim = DateTime.Today;
+    private bool Carregando = true;
+    private string? Erro;
+    private int TotalPeriodo;
+    private int TotalCoordenadas;
+    private int TotalBairros;
+    private int SemCoordenadas;
+    private List<MarcadorMapa> Marcadores = [];
+    private List<ItemBairro> PorBairro = [];
+    private double MinLatitude = -8.2, MaxLatitude = -7.9;
+    private double MinLongitude = -35.1, MaxLongitude = -34.8;
+
+    protected override Task OnInitializedAsync() => CarregarAsync();
+
+    private async Task CarregarAsync()
+    {
+        Carregando = true;
+        Erro = null;
+        try
+        {
+            if (DataInicio.Date > DataFim.Date) { Erro = "A data inicial deve ser anterior ou igual à data final."; return; }
+            var inicioUtc = DateTime.SpecifyKind(DataInicio.Date.AddHours(3), DateTimeKind.Utc);
+            var fimUtc = DateTime.SpecifyKind(DataFim.Date.AddDays(1).AddHours(3), DateTimeKind.Utc);
+            var lista = await Db.Ocorrencias.AsNoTracking().Where(x => x.DataChamado >= inicioUtc && x.DataChamado < fimUtc)
+                .Select(x => new { x.Bairro, x.Latitude, x.Longitude }).ToListAsync();
+
+            TotalPeriodo = lista.Count;
+            TotalCoordenadas = lista.Count(x => x.Latitude.HasValue && x.Longitude.HasValue);
+            SemCoordenadas = TotalPeriodo - TotalCoordenadas;
+            TotalBairros = lista.Select(x => x.Bairro).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+            PorBairro = lista.GroupBy(x => x.Bairro).Select(g => new ItemBairro(g.Key, g.Count()))
+                .OrderByDescending(x => x.Total).Take(10).ToList();
+
+            var pontos = lista.Where(x => x.Latitude.HasValue && x.Longitude.HasValue)
+                .Select(x => (Lat: x.Latitude!.Value, Lon: x.Longitude!.Value)).ToList();
+            if (pontos.Count == 0) { Marcadores = []; return; }
+
+            MinLatitude = pontos.Min(x => x.Lat); MaxLatitude = pontos.Max(x => x.Lat);
+            MinLongitude = pontos.Min(x => x.Lon); MaxLongitude = pontos.Max(x => x.Lon);
+            ExpandirLimites(ref MinLatitude, ref MaxLatitude);
+            ExpandirLimites(ref MinLongitude, ref MaxLongitude);
+            Marcadores = pontos.GroupBy(p => (Lat: Math.Round(p.Lat, 3), Lon: Math.Round(p.Lon, 3)))
+                .Select(g => new MarcadorMapa(g.Average(x => x.Lat), g.Average(x => x.Lon), g.Count()))
+                .OrderByDescending(x => x.Total).ToList();
+        }
+        catch (Exception ex) { Erro = $"Não foi possível carregar o mapa: {ex.GetBaseException().Message}"; }
+        finally { Carregando = false; }
+    }
+
+    private static void ExpandirLimites(ref double min, ref double max)
+    {
+        if (max - min >= 0.01) return;
+        var meio = (max + min) / 2;
+        min = meio - 0.005; max = meio + 0.005;
+    }
+    private double X(double longitude) => 50 + (longitude - MinLongitude) / (MaxLongitude - MinLongitude) * 708;
+    private double Y(double latitude) => 34 + (MaxLatitude - latitude) / (MaxLatitude - MinLatitude) * 378;
+    private double Raio(int total) => Math.Min(19, 5 + Math.Sqrt(total) * 2);
+    private sealed record MarcadorMapa(double Latitude, double Longitude, int Total);
+    private sealed record ItemBairro(string Nome, int Total);
+}
