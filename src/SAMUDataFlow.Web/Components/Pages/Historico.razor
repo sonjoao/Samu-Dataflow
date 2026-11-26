@@ -1,4 +1,165 @@
 @page "/historico"
+@using System.Globalization
+@using Microsoft.EntityFrameworkCore
+@using SAMUDataFlow.Domain.Comum
+@using SAMUDataFlow.Domain.Entidades
+@using SAMUDataFlow.Domain.Enums
+@using SAMUDataFlow.Infrastructure.Persistencia
+@inject SamuDbContext Db
 
-<PageTitle>Base Histórica — SAMU DataFlow</PageTitle>
-<PaginaEmConstrucao Titulo="Base Histórica" Descricao="Histórico de alterações." />
+<PageTitle>Base histórica — SAMU DataFlow</PageTitle>
+
+<section class="page history-page">
+    <header class="page-heading">
+        <div><p class="eyebrow">CONSULTA E RASTREABILIDADE</p><h1>Base histórica</h1><p class="page-subtitle">Consulte ocorrências atuais e arquivadas, além das alterações registradas no sistema.</p></div>
+        <a class="button button-secondary" href="ocorrencias">Abrir ocorrências ativas <span aria-hidden="true">→</span></a>
+    </header>
+
+    <div class="history-tabs" role="tablist" aria-label="Conteúdo da base histórica">
+        <button type="button" role="tab" aria-selected="@(Aba == "ocorrencias")" class="@(Aba == "ocorrencias" ? "history-tab active" : "history-tab")" @onclick='() => TrocarAbaAsync("ocorrencias")'>Ocorrências</button>
+        <button type="button" role="tab" aria-selected="@(Aba == "atividade")" class="@(Aba == "atividade" ? "history-tab active" : "history-tab")" @onclick='() => TrocarAbaAsync("atividade")'>Atividade registrada</button>
+    </div>
+
+    <article class="card history-filter-card">
+        <div class="history-filter-grid">
+            <label class="filter-field"><span>Data inicial</span><input type="date" @bind="DataInicio" @bind:format="yyyy-MM-dd" /></label>
+            <label class="filter-field"><span>Data final</span><input type="date" @bind="DataFim" @bind:format="yyyy-MM-dd" /></label>
+            <label class="filter-field"><span>Código da ocorrência</span><input @bind="CodigoBusca" maxlength="100" placeholder="Ex.: SAMU-2026-001" /></label>
+            @if (Aba == "ocorrencias")
+            {
+                <label class="filter-field"><span>Bairro</span><input @bind="BairroBusca" maxlength="100" placeholder="Todos os bairros" /></label>
+                <label class="filter-field"><span>Status</span><select @bind="StatusBusca"><option value="">Todos</option>@foreach (var status in Enum.GetValues<StatusOcorrencia>()) { <option value="@status">@status.Rotulo()</option> }</select></label>
+            }
+            <button class="button button-primary" type="button" disabled="@Carregando" @onclick="CarregarAsync">@(Carregando ? "Buscando…" : "Aplicar filtros")</button>
+        </div>
+        @if (!string.IsNullOrWhiteSpace(Erro)) { <div class="notice notice-error" role="alert">@Erro</div> }
+    </article>
+
+    @if (Carregando) { <div class="card loading-card">Carregando base histórica…</div> }
+    else if (Aba == "ocorrencias")
+    {
+        <article class="card table-card history-table-card">
+            <div class="table-heading"><div><h2 class="section-title">Ocorrências registradas</h2><p class="muted">@TotalOcorrencias.ToString("N0", PtBr) registro(s) encontrado(s); exibindo @Ocorrencias.Count.ToString("N0", PtBr) nesta página.</p></div><span class="history-readonly-badge">Consulta somente leitura</span></div>
+            @if (Ocorrencias.Count == 0) { <div class="table-empty"><strong>Nenhum registro encontrado</strong><span>Ajuste os filtros ou importe dados pela área de administração.</span></div> }
+            else
+            {
+                <div class="table-scroll"><table class="occurrence-table"><thead><tr><th>Data do chamado</th><th>Código</th><th>Bairro</th><th>Agravo</th><th>Gravidade</th><th>Status</th><th>Arquivo</th><th></th></tr></thead><tbody>
+                    @foreach (var item in Ocorrencias)
+                    {
+                        <tr><td class="date-cell">@item.DataChamado.AddHours(-3).ToString("dd/MM/yyyy HH:mm", PtBr)</td><td class="code-cell">@item.CodigoExterno</td><td>@item.Bairro</td><td>@item.TipoAgravo.Rotulo()</td><td>@item.Gravidade.Rotulo()</td><td>@item.Status.Rotulo()</td><td><span class="history-state @(item.EstaArquivada ? "archived" : "active")">@(item.EstaArquivada ? "Arquivada" : "Ativa")</span></td><td><button class="row-action" type="button" @onclick="() => Selecionada = item">Detalhes <span aria-hidden="true">→</span></button></td></tr>
+                    }
+                </tbody></table></div>
+                <div class="history-pagination"><span>Página @Pagina de @TotalPaginas</span><div><button class="button button-secondary" disabled="@(Pagina <= 1)" @onclick="PaginaAnteriorAsync">Anterior</button><button class="button button-secondary" disabled="@(Pagina >= TotalPaginas)" @onclick="ProximaPaginaAsync">Próxima</button></div></div>
+            }
+        </article>
+    }
+    else
+    {
+        <article class="card table-card history-table-card">
+            <div class="table-heading"><div><h2 class="section-title">Atividade registrada</h2><p class="muted">Trilha de operações realizadas após a ativação do histórico.</p></div><span class="history-readonly-badge">Sem conteúdo clínico</span></div>
+            @if (Eventos.Count == 0) { <div class="table-empty"><strong>Nenhuma atividade no período</strong><span>Novas criações, alterações, importações e ajustes administrativos aparecerão aqui.</span></div> }
+            else
+            {
+                <div class="table-scroll"><table class="occurrence-table"><thead><tr><th>Data e hora</th><th>Área</th><th>Ação</th><th>Ocorrência</th><th>Responsável</th><th>Resumo</th></tr></thead><tbody>
+                    @foreach (var evento in Eventos)
+                    {
+                        <tr><td class="date-cell">@evento.CriadoEmUtc.AddHours(-3).ToString("dd/MM/yyyy HH:mm", PtBr)</td><td>@evento.TipoRegistro</td><td>@evento.Acao</td><td>@(evento.CodigoOcorrencia ?? "—")</td><td>@evento.Responsavel</td><td>@evento.Detalhes</td></tr>
+                    }
+                </tbody></table></div>
+            }
+        </article>
+    }
+
+    @if (Selecionada is not null)
+    {
+        <div class="modal-backdrop" role="presentation"><section class="dialog-card history-detail-card" role="dialog" aria-modal="true" aria-labelledby="historico-detail-title">
+            <div class="dialog-heading"><div><p class="eyebrow">REGISTRO HISTÓRICO</p><h2 id="historico-detail-title">Ocorrência @Selecionada.CodigoExterno</h2></div><button class="dialog-close" aria-label="Fechar" @onclick="() => Selecionada = null">×</button></div>
+            <div class="detail-grid">
+                <div><span>Data do chamado</span><strong>@Selecionada.DataChamado.AddHours(-3).ToString("dd/MM/yyyy HH:mm", PtBr)</strong></div><div><span>Distrito / bairro</span><strong>@Selecionada.Distrito / @Selecionada.Bairro</strong></div>
+                <div><span>Agravo e gravidade</span><strong>@Selecionada.TipoAgravo.Rotulo() · @Selecionada.Gravidade.Rotulo()</strong></div><div><span>Status</span><strong>@Selecionada.Status.Rotulo()</strong></div>
+                <div><span>Desfecho</span><strong>@(Selecionada.Desfecho.HasValue ? Selecionada.Desfecho.Value.Rotulo() : "Não informado")</strong></div><div><span>Hospital de destino</span><strong>@(Selecionada.HospitalDestino ?? "Não informado")</strong></div>
+                <div><span>Anotações dos paramédicos</span><strong>@(Selecionada.AnotacoesParamedicos ?? "Não informado")</strong></div><div><span>Acompanhante</span><strong>@(Selecionada.Acompanhante ?? "Não informado")</strong></div>
+                <div class="detail-wide"><span>Observações extras</span><strong>@(Selecionada.ObservacoesExtras ?? "Não informado")</strong></div>
+                <div><span>Registro criado</span><strong>@Selecionada.RegistradoEm.AddHours(-3).ToString("dd/MM/yyyy HH:mm", PtBr)</strong></div><div><span>Origem</span><strong>@(Selecionada.EstaArquivada ? "Arquivo histórico" : "Base ativa")</strong></div>
+            </div>
+        </section></div>
+    }
+</section>
+
+@code {
+    private static readonly CultureInfo PtBr = CultureInfo.GetCultureInfo("pt-BR");
+    private DateTime DataInicio = DateTime.Today.AddDays(-29);
+    private DateTime DataFim = DateTime.Today;
+    private string CodigoBusca = "";
+    private string BairroBusca = "";
+    private string StatusBusca = "";
+    private string Aba = "ocorrencias";
+    private bool Carregando;
+    private string? Erro;
+    private int Pagina = 1;
+    private int TotalOcorrencias;
+    private int TotalPaginas = 1;
+    private const int ItensPorPagina = 25;
+    private List<Ocorrencia> Ocorrencias = [];
+    private List<EventoHistorico> Eventos = [];
+    private Ocorrencia? Selecionada;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var dias = await Db.ConfiguracoesSistema.AsNoTracking().Where(x => x.Id == ConfiguracaoSistema.IdUnico)
+                .Select(x => x.DiasPadraoHistorico).SingleOrDefaultAsync();
+            if (dias > 0) DataInicio = DateTime.Today.AddDays(-dias + 1);
+        }
+        catch { /* Mantém o período padrão se a base ainda não estiver disponível. */ }
+        await CarregarAsync();
+    }
+
+    private async Task TrocarAbaAsync(string aba)
+    {
+        if (Aba == aba) return;
+        Aba = aba;
+        Pagina = 1;
+        await CarregarAsync();
+    }
+
+    private async Task CarregarAsync()
+    {
+        Erro = null;
+        if (DataInicio.Date > DataFim.Date) { Erro = "A data inicial deve ser anterior ou igual à final."; return; }
+        Carregando = true;
+        try
+        {
+            var inicioUtc = DateTime.SpecifyKind(DataInicio.Date.AddHours(3), DateTimeKind.Utc);
+            var fimUtc = DateTime.SpecifyKind(DataFim.Date.AddDays(1).AddHours(3), DateTimeKind.Utc);
+            var codigo = CodigoBusca.Trim();
+            if (Aba == "ocorrencias")
+            {
+                var consulta = Db.Ocorrencias.AsNoTracking().Where(x => x.DataChamado >= inicioUtc && x.DataChamado < fimUtc);
+                if (codigo.Length > 0) consulta = consulta.Where(x => x.CodigoExterno.Contains(codigo));
+                var bairro = BairroBusca.Trim();
+                if (bairro.Length > 0) consulta = consulta.Where(x => x.Bairro.Contains(bairro));
+                if (Enum.TryParse<StatusOcorrencia>(StatusBusca, out var status)) consulta = consulta.Where(x => x.Status == status);
+                TotalOcorrencias = await consulta.CountAsync();
+                TotalPaginas = Math.Max(1, (int)Math.Ceiling(TotalOcorrencias / (double)ItensPorPagina));
+                Pagina = Math.Clamp(Pagina, 1, TotalPaginas);
+                Ocorrencias = await consulta.OrderByDescending(x => x.DataChamado).ThenBy(x => x.CodigoExterno)
+                    .Skip((Pagina - 1) * ItensPorPagina).Take(ItensPorPagina).ToListAsync();
+                Eventos = [];
+            }
+            else
+            {
+                var consulta = Db.EventosHistoricos.AsNoTracking().Where(x => x.CriadoEmUtc >= inicioUtc && x.CriadoEmUtc < fimUtc);
+                if (codigo.Length > 0) consulta = consulta.Where(x => x.CodigoOcorrencia != null && x.CodigoOcorrencia.Contains(codigo));
+                Eventos = await consulta.OrderByDescending(x => x.CriadoEmUtc).Take(200).ToListAsync();
+                Ocorrencias = [];
+            }
+        }
+        catch { Erro = "Não foi possível carregar o histórico. Verifique a conexão e as migrations do banco."; }
+        finally { Carregando = false; }
+    }
+
+    private async Task PaginaAnteriorAsync() { if (Pagina > 1) { Pagina--; await CarregarAsync(); } }
+    private async Task ProximaPaginaAsync() { if (Pagina < TotalPaginas) { Pagina++; await CarregarAsync(); } }
+}

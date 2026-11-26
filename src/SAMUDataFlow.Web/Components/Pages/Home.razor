@@ -185,7 +185,7 @@
             var inicioPeriodoUtc = hojeRecife.AddDays(-29).AddHours(3);
             var inicioTendenciaUtc = hojeRecife.AddDays(-13).AddHours(3);
 
-            var periodo = await Db.Ocorrencias.AsNoTracking()
+            var periodo = await Db.Ocorrencias.AsNoTracking().Where(x => !x.EstaArquivada)
                 .Where(x => x.DataChamado >= inicioPeriodoUtc && x.DataChamado <= agoraUtc)
                 .ToListAsync();
 

@@ -1,4 +1,112 @@
 @page "/configuracoes"
+@attribute [Authorize(Roles = "Administrador 2")]
+@using Microsoft.EntityFrameworkCore
+@using SAMUDataFlow.Domain.Entidades
+@using SAMUDataFlow.Infrastructure.Persistencia
+@inject SamuDbContext Db
+@inject AuthenticationStateProvider EstadoAutenticacao
+@inject NavigationManager Navegacao
 
 <PageTitle>Configurações — SAMU DataFlow</PageTitle>
-<PaginaEmConstrucao Titulo="Configurações" Descricao="Preferências da aplicação." />
+
+<section class="page settings-page">
+    <header class="page-heading"><div><p class="eyebrow">ADMINISTRAÇÃO DO PAINEL</p><h1>Configurações</h1><p class="page-subtitle">Defina a identificação da unidade e as preferências de consulta do sistema.</p></div></header>
+    @if (!string.IsNullOrWhiteSpace(Mensagem)) { <div class="notice notice-success" role="status">@Mensagem</div> }
+    @if (!string.IsNullOrWhiteSpace(Erro)) { <div class="notice notice-error" role="alert">@Erro</div> }
+
+    @if (Carregando) { <div class="card loading-card">Carregando configurações…</div> }
+    else
+    {
+        <div class="settings-grid">
+            <article class="card settings-card">
+                <div class="settings-card-heading"><span class="settings-symbol" aria-hidden="true">✚</span><div><p class="eyebrow">IDENTIFICAÇÃO</p><h2 class="section-title">Unidade de atendimento</h2><p class="muted">Esses dados identificam a referência operacional exibida no sistema.</p></div></div>
+                <label class="filter-field"><span>Nome do serviço</span><input @bind="NomeServico" maxlength="100" required /></label>
+                <div class="settings-inline-fields"><label class="filter-field"><span>Município</span><input @bind="Municipio" maxlength="100" required /></label><label class="filter-field"><span>UF</span><input @bind="UnidadeFederativa" maxlength="2" required /></label></div>
+            </article>
+
+            <article class="card settings-card">
+                <div class="settings-card-heading"><span class="settings-symbol" aria-hidden="true">◷</span><div><p class="eyebrow">CONSULTA</p><h2 class="section-title">Período histórico padrão</h2><p class="muted">Define o intervalo inicial ao abrir a Base Histórica. Os filtros continuam ajustáveis por consulta.</p></div></div>
+                <label class="filter-field"><span>Período inicial</span><select @bind="DiasPadraoHistorico"><option value="30">Últimos 30 dias</option><option value="90">Últimos 90 dias</option><option value="180">Últimos 180 dias</option><option value="365">Últimos 365 dias</option></select></label>
+                <a class="settings-link" href="historico">Abrir Base Histórica <span aria-hidden="true">→</span></a>
+            </article>
+
+            <article class="card settings-card">
+                <div class="settings-card-heading"><span class="settings-symbol" aria-hidden="true">◐</span><div><p class="eyebrow">APARÊNCIA</p><h2 class="section-title">Tema claro ou escuro</h2><p class="muted">A preferência é salva neste navegador e pode ser alterada a qualquer momento.</p></div></div>
+                <form class="settings-theme-form" method="post" action="/tema"><AntiforgeryToken /><input type="hidden" name="returnUrl" value="@Retorno" /><button class="button button-secondary" type="submit">Alternar tema claro / escuro</button></form>
+            </article>
+
+            <article class="card settings-card settings-security-card">
+                <div class="settings-card-heading"><span class="settings-symbol" aria-hidden="true">✓</span><div><p class="eyebrow">ACESSO E DADOS</p><h2 class="section-title">Regras de segurança</h2><p class="muted">Resumo dos controles que permanecem ativos para todos os perfis.</p></div></div>
+                <ul class="settings-security-list"><li>Administrador 1 consulta as telas e não altera dados.</li><li>Administrador 2 administra usuários, importações e configurações.</li><li>Ocorrências arquivadas continuam preservadas na Base Histórica.</li><li>A trilha de atividade registra ações, sem copiar anotações clínicas.</li></ul>
+                <a class="settings-link" href="usuarios">Gerenciar usuários e perfis <span aria-hidden="true">→</span></a>
+            </article>
+        </div>
+        <div class="settings-save-row"><span class="muted">@if (AtualizadoEmUtc.HasValue) { <text>Última alteração: @AtualizadoEmUtc.Value.AddHours(-3).ToString("dd/MM/yyyy HH:mm") por @AtualizadoPor</text> }</span><button class="button button-primary" type="button" disabled="@Salvando" @onclick="SalvarAsync">@(Salvando ? "Salvando…" : "Salvar configurações")</button></div>
+    }
+</section>
+
+@code {
+    private bool Carregando = true;
+    private bool Salvando;
+    private string NomeServico = "SAMU DataFlow";
+    private string Municipio = "Recife";
+    private string UnidadeFederativa = "PE";
+    private int DiasPadraoHistorico = ConfiguracaoSistema.PeriodoHistoricoPadrao;
+    private DateTime? AtualizadoEmUtc;
+    private string AtualizadoPor = "Sistema";
+    private string? Erro;
+    private string? Mensagem;
+    private string Retorno => new Uri(Navegacao.Uri).PathAndQuery;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!await AdministradorCompletoAtualAsync()) { Navegacao.NavigateTo("/acesso-negado", forceLoad: true); return; }
+        try
+        {
+            var config = await Db.ConfiguracoesSistema.SingleAsync(x => x.Id == ConfiguracaoSistema.IdUnico);
+            NomeServico = config.NomeServico;
+            Municipio = config.Municipio;
+            UnidadeFederativa = config.UnidadeFederativa;
+            DiasPadraoHistorico = config.DiasPadraoHistorico;
+            AtualizadoEmUtc = config.AtualizadoEmUtc;
+            AtualizadoPor = config.AtualizadoPor;
+        }
+        catch { Erro = "Não foi possível carregar as configurações. Verifique se as migrations foram aplicadas."; }
+        finally { Carregando = false; }
+    }
+
+    private async Task SalvarAsync()
+    {
+        if (!await AdministradorCompletoAtualAsync()) { Navegacao.NavigateTo("/acesso-negado", forceLoad: true); return; }
+        if (Salvando) return;
+        Erro = Mensagem = null;
+        Salvando = true;
+        try
+        {
+            var config = await Db.ConfiguracoesSistema.SingleOrDefaultAsync(x => x.Id == ConfiguracaoSistema.IdUnico)
+                ?? ConfiguracaoSistema.CriarPadrao();
+            config.Atualizar(NomeServico, Municipio, UnidadeFederativa, DiasPadraoHistorico,
+                (await EstadoAutenticacao.GetAuthenticationStateAsync()).User.Identity?.Name ?? "Administrador");
+            if (Db.Entry(config).State == Microsoft.EntityFrameworkCore.EntityState.Detached)
+                Db.ConfiguracoesSistema.Add(config);
+            Db.EventosHistoricos.Add(EventoHistorico.Criar("Configurações", ConfiguracaoSistema.IdUnico, null,
+                "Preferências atualizadas", (await EstadoAutenticacao.GetAuthenticationStateAsync()).User.Identity?.Name ?? "Administrador",
+                "Identificação da unidade e período padrão da Base Histórica atualizados."));
+            await Db.SaveChangesAsync();
+            AtualizadoEmUtc = config.AtualizadoEmUtc;
+            AtualizadoPor = config.AtualizadoPor;
+            Mensagem = "Configurações salvas. A identificação da unidade já está atualizada no sistema.";
+        }
+        catch (ArgumentException ex) { Erro = ex.Message; }
+        catch { Erro = "Não foi possível salvar as configurações. Nenhuma alteração foi confirmada."; }
+        finally { Salvando = false; }
+    }
+
+    private async Task<bool> AdministradorCompletoAtualAsync()
+    {
+        var user = (await EstadoAutenticacao.GetAuthenticationStateAsync()).User;
+        var id = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return user.IsInRole(Usuario.AdministradorCompleto) && int.TryParse(id, out var usuarioId)
+            && await Db.Usuarios.AsNoTracking().AnyAsync(x => x.Id == usuarioId && x.Papel == Usuario.AdministradorCompleto);
+    }
+}

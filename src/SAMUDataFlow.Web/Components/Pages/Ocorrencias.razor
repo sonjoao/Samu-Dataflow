@@ -313,7 +313,7 @@
     {
         try
         {
-            Todas = await Db.Ocorrencias.AsNoTracking().OrderByDescending(x => x.DataChamado).ToListAsync();
+            Todas = await Db.Ocorrencias.AsNoTracking().Where(x => !x.EstaArquivada).OrderByDescending(x => x.DataChamado).ToListAsync();
             Erro = null;
         }
         catch (Exception ex)
@@ -368,6 +368,9 @@
             atualizada.Atualizar(atualizada.DataChamado, atualizada.DataChegada, atualizada.Distrito, atualizada.Bairro,
                 atualizada.TipoAgravo, atualizada.Gravidade, atualizada.Status, atualizada.Latitude, atualizada.Longitude,
                 EdicaoAnotacoes, EdicaoDesfecho, EdicaoHospital, EdicaoObservacoes, EdicaoAcompanhante);
+            var principal = (await EstadoAutenticacao.GetAuthenticationStateAsync()).User;
+            Db.EventosHistoricos.Add(EventoHistorico.Criar("Ocorrência", atualizada.Id, atualizada.CodigoExterno,
+                "Detalhes atualizados", principal.Identity?.Name ?? "Administrador", "Campos de atendimento revisados."));
             await Db.SaveChangesAsync();
             var indice = Todas.FindIndex(x => x.Id == atualizada.Id);
             if (indice >= 0) Todas[indice] = atualizada;
@@ -414,7 +417,7 @@
         SalvandoCadastro = true;
         try
         {
-            if (await Db.Ocorrencias.AnyAsync(x => x.CodigoExterno == codigo))
+            if (await Db.Ocorrencias.AnyAsync(x => !x.EstaArquivada && x.CodigoExterno == codigo))
             {
                 ErroCadastro = "Já existe uma ocorrência com esse código.";
                 return;
@@ -428,6 +431,9 @@
                 anotacoesParamedicos: NovasAnotacoes, desfecho: NovoDesfecho, hospitalDestino: NovoHospital,
                 observacoesExtras: NovasObservacoes, acompanhante: NovoAcompanhante);
             Db.Ocorrencias.Add(nova);
+            var principal = (await EstadoAutenticacao.GetAuthenticationStateAsync()).User;
+            Db.EventosHistoricos.Add(EventoHistorico.Criar("Ocorrência", null, nova.CodigoExterno,
+                "Ocorrência criada", principal.Identity?.Name ?? "Administrador", "Novo atendimento registrado."));
             await Db.SaveChangesAsync();
             Todas.Add(nova);
             Pagina = 1;

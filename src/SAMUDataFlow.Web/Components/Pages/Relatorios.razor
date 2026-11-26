@@ -77,7 +77,7 @@
             if (DataInicio.Date > DataFim.Date) { Erro = "A data inicial deve ser anterior ou igual à data final."; return; }
             var inicioUtc = DateTime.SpecifyKind(DataInicio.Date.AddHours(3), DateTimeKind.Utc);
             var fimUtc = DateTime.SpecifyKind(DataFim.Date.AddDays(1).AddHours(3), DateTimeKind.Utc);
-            var lista = await Db.Ocorrencias.AsNoTracking().Where(x => x.DataChamado >= inicioUtc && x.DataChamado < fimUtc).ToListAsync();
+            var lista = await Db.Ocorrencias.AsNoTracking().Where(x => !x.EstaArquivada && x.DataChamado >= inicioUtc && x.DataChamado < fimUtc).ToListAsync();
             Total = lista.Count;
             Concluidas = lista.Count(x => x.Status == StatusOcorrencia.Concluida);
             AltaGravidade = lista.Count(x => x.Gravidade == Gravidade.Alta);

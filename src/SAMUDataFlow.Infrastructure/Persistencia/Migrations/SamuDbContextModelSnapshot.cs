@@ -17,10 +17,108 @@ namespace SAMUDataFlow.Infrastructure.Persistencia.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.14")
+                .HasAnnotation("ProductVersion", "10.0.15")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+
+            modelBuilder.Entity("SAMUDataFlow.Domain.Entidades.ConfiguracaoSistema", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("AtualizadoEmUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("AtualizadoPor")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("DiasPadraoHistorico")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Municipio")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("NomeServico")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("UnidadeFederativa")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("configuracoes_sistema", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            AtualizadoEmUtc = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            AtualizadoPor = "Sistema",
+                            DiasPadraoHistorico = 30,
+                            Municipio = "Recife",
+                            NomeServico = "SAMU DataFlow",
+                            UnidadeFederativa = "PE"
+                        });
+                });
+
+            modelBuilder.Entity("SAMUDataFlow.Domain.Entidades.EventoHistorico", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Acao")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<string>("CodigoOcorrencia")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("CriadoEmUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Detalhes")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int?>("RegistroId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Responsavel")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("TipoRegistro")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CodigoOcorrencia");
+
+                    b.HasIndex("CriadoEmUtc");
+
+                    b.ToTable("eventos_historicos", (string)null);
+                });
 
             modelBuilder.Entity("SAMUDataFlow.Domain.Entidades.Ocorrencia", b =>
                 {
@@ -63,6 +161,9 @@ namespace SAMUDataFlow.Infrastructure.Persistencia.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<bool>("EstaArquivada")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Gravidade")
                         .IsRequired()
                         .HasMaxLength(30)
@@ -103,7 +204,8 @@ namespace SAMUDataFlow.Infrastructure.Persistencia.Migrations
                     b.HasIndex("Bairro");
 
                     b.HasIndex("CodigoExterno")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"EstaArquivada\" = false");
 
                     b.HasIndex("DataChamado");
 

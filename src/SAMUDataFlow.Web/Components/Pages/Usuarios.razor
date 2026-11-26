@@ -105,7 +105,10 @@
             if (await Db.Usuarios.AnyAsync(x => x.Login == Login.Trim())) { Erro = "Esse login já está em uso."; return; }
             var usuario = Usuario.CriarConta(Nome, Setor, Login, "temporario", Papel);
             var hash = Hasher.HashPassword(usuario, Senha);
-            Db.Usuarios.Add(Usuario.CriarConta(Nome, Setor, Login, hash, Papel));
+            var novaConta = Usuario.CriarConta(Nome, Setor, Login, hash, Papel);
+            Db.Usuarios.Add(novaConta);
+            Db.EventosHistoricos.Add(EventoHistorico.Criar("Usuários", null, null, "Conta criada", await ResponsavelAtualAsync(),
+                $"Nova conta cadastrada com o perfil {Papel}."));
             await Db.SaveChangesAsync();
             Nome = Setor = Login = Senha = "";
             Mensagem = "Usuário criado.";
@@ -123,6 +126,8 @@
         { Erro = "Não é possível remover seu próprio acesso administrativo."; return; }
         var rastreado = await Db.Usuarios.SingleAsync(x => x.Id == usuario.Id);
         rastreado.AlterarPapel(Papeis[usuario.Id]);
+        Db.EventosHistoricos.Add(EventoHistorico.Criar("Usuários", usuario.Id, null, "Perfil alterado", await ResponsavelAtualAsync(),
+            $"Perfil atualizado para {Papeis[usuario.Id]}."));
         await Db.SaveChangesAsync();
         Mensagem = $"Perfil de {usuario.Nome} atualizado.";
         await CarregarAsync();
@@ -139,6 +144,8 @@
         rastreado.AtivarConta(login, Hasher.HashPassword(rastreado, senha));
         try
         {
+            Db.EventosHistoricos.Add(EventoHistorico.Criar("Usuários", usuario.Id, null, "Conta ativada", await ResponsavelAtualAsync(),
+                "Conta legada ativada com novo login e senha."));
             await Db.SaveChangesAsync();
             Mensagem = $"Conta de {usuario.Nome} ativada.";
             SenhasLegadas[usuario.Id] = "";
@@ -163,10 +170,15 @@
         if (ExclusaoPendente.Papel == Usuario.AdministradorCompleto && await Db.Usuarios.CountAsync(x => x.Papel == Usuario.AdministradorCompleto) <= 1)
         { Erro = "Não é possível excluir o último Administrador 2."; ExclusaoPendente = null; return; }
         var usuario = await Db.Usuarios.SingleAsync(x => x.Id == ExclusaoPendente.Id);
+        Db.EventosHistoricos.Add(EventoHistorico.Criar("Usuários", usuario.Id, null, "Conta removida", await ResponsavelAtualAsync(),
+            "Conta de acesso excluída por um administrador."));
         Db.Usuarios.Remove(usuario);
         await Db.SaveChangesAsync();
         Mensagem = $"Conta de {usuario.Nome} excluída.";
         ExclusaoPendente = null;
         await CarregarAsync();
     }
+
+    private async Task<string> ResponsavelAtualAsync() =>
+        (await EstadoAutenticacao.GetAuthenticationStateAsync()).User.Identity?.Name ?? "Administrador";
 }

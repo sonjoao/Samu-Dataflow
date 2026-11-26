@@ -29,7 +29,7 @@ public sealed class OcorrenciaConfiguracao : IEntityTypeConfiguration<Ocorrencia
         b.Property(x => x.DataChegada).HasColumnType("timestamp with time zone");
         b.Property(x => x.RegistradoEm).HasColumnType("timestamp with time zone");
 
-        b.HasIndex(x => x.CodigoExterno).IsUnique();
+        b.HasIndex(x => x.CodigoExterno).IsUnique().HasFilter("\"EstaArquivada\" = false");
         b.HasIndex(x => x.DataChamado);
         b.HasIndex(x => x.Bairro);
     }

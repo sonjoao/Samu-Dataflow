@@ -51,7 +51,7 @@ public static class RecursosSamuEndpoints
         var inicioUtc = DateTime.SpecifyKind(de.Value.ToDateTime(TimeOnly.MinValue).AddHours(3), DateTimeKind.Utc);
         var fimUtc = DateTime.SpecifyKind(ate.Value.AddDays(1).ToDateTime(TimeOnly.MinValue).AddHours(3), DateTimeKind.Utc);
         await using var db = await fabrica.CreateDbContextAsync(cancellationToken);
-        var ocorrencias = await db.Ocorrencias.AsNoTracking()
+        var ocorrencias = await db.Ocorrencias.AsNoTracking().Where(x => !x.EstaArquivada)
             .Where(x => x.DataChamado >= inicioUtc && x.DataChamado < fimUtc)
             .OrderBy(x => x.DataChamado).ToListAsync(cancellationToken);
 

@@ -29,6 +29,7 @@ public sealed class Ocorrencia
     public string? HospitalDestino { get; private set; }
     public string? ObservacoesExtras { get; private set; }
     public string? Acompanhante { get; private set; }
+    public bool EstaArquivada { get; private set; }
     public DateTime RegistradoEm { get; private set; }
 
     private Ocorrencia() { } // exigido pelo EF Core
@@ -85,6 +86,9 @@ public sealed class Ocorrencia
         string? acompanhante = null) =>
         Aplicar(dataChamado, dataChegada, distrito, bairro, tipoAgravo, gravidade, status, latitude, longitude,
             anotacoesParamedicos, desfecho, hospitalDestino, observacoesExtras, acompanhante);
+
+    /// <summary>Move o registro para a consulta histórica sem apagar seus dados.</summary>
+    public void Arquivar() => EstaArquivada = true;
 
     private void Aplicar(
         DateTime dataChamado,

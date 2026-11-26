@@ -44,7 +44,7 @@
                 <p class="muted">Escolha somente samu_mock_postgres.sql. As versões DuckDB e Oracle não são compatíveis.</p>
                 @if (RegistrosAtuais > 0)
                 {
-                    <p class="current-record-count">A base contém atualmente @RegistrosAtuais.ToString("N0", CulturaPtBr) ocorrência(s).</p>
+            <p class="current-record-count">A base ativa contém atualmente @RegistrosAtuais.ToString("N0", CulturaPtBr) ocorrência(s).</p>
                 }
             </div>
         </div>
@@ -98,8 +98,8 @@
         <div class="modal-backdrop" role="presentation">
             <section class="dialog-card" role="alertdialog" aria-modal="true" aria-labelledby="replace-title">
                 <div class="dialog-heading"><div><p class="eyebrow">CONFIRMAÇÃO NECESSÁRIA</p><h2 id="replace-title">Substituir a base atual?</h2></div><button type="button" class="dialog-close" aria-label="Cancelar" @onclick="CancelarSubstituicao">×</button></div>
-                <p class="dialog-intro">Isso apagará as ocorrências atualmente no painel e gravará @OcorrenciasValidas.Count.ToString("N0", CulturaPtBr) registros válidos do arquivo SQL. O script não será executado no banco.</p>
-                <div class="dialog-actions"><button type="button" class="button button-secondary" @onclick="CancelarSubstituicao">Cancelar</button><button type="button" class="button button-primary" disabled="@(!PodeImportar)" @onclick="ConfirmarSubstituicaoAsync">Apagar base atual e importar</button></div>
+                <p class="dialog-intro">As ocorrências ativas serão arquivadas para consulta histórica; em seguida, @OcorrenciasValidas.Count.ToString("N0", CulturaPtBr) registros válidos do arquivo SQL serão carregados. O script não será executado no banco.</p>
+                <div class="dialog-actions"><button type="button" class="button button-secondary" @onclick="CancelarSubstituicao">Cancelar</button><button type="button" class="button button-primary" disabled="@(!PodeImportar)" @onclick="ConfirmarSubstituicaoAsync">Arquivar base atual e importar</button></div>
             </section>
         </div>
     }
@@ -124,7 +124,7 @@
     {
         var auth = await EstadoAutenticacao.GetAuthenticationStateAsync();
         PodeImportar = auth.User.IsInRole(Usuario.AdministradorCompleto);
-        try { RegistrosAtuais = await Db.Ocorrencias.CountAsync(); }
+        try { RegistrosAtuais = await Db.Ocorrencias.CountAsync(x => !x.EstaArquivada); }
         catch { MensagemErro = "Não foi possível consultar a base de ocorrências. Confira a conexão com o banco."; }
     }
 
@@ -199,7 +199,7 @@
         {
             var codigosExistentes = SubstituirBase
                 ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-                : (await Db.Ocorrencias.AsNoTracking().Select(x => x.CodigoExterno).ToListAsync()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                : (await Db.Ocorrencias.AsNoTracking().Where(x => !x.EstaArquivada).Select(x => x.CodigoExterno).ToListAsync()).ToHashSet(StringComparer.OrdinalIgnoreCase);
             var lote = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var novos = OcorrenciasValidas.Where(x => lote.Add(x.CodigoExterno) && !codigosExistentes.Contains(x.CodigoExterno)).ToList();
             var duplicados = OcorrenciasValidas.Count - novos.Count;
@@ -209,14 +209,24 @@
                 return;
             }
             await using var transacao = await Db.Database.BeginTransactionAsync();
-            if (SubstituirBase) await Db.Ocorrencias.ExecuteDeleteAsync();
+            var arquivadas = 0;
+            if (SubstituirBase)
+            {
+                var existentes = await Db.Ocorrencias.Where(x => !x.EstaArquivada).ToListAsync();
+                foreach (var existente in existentes) existente.Arquivar();
+                arquivadas = existentes.Count;
+            }
             if (novos.Count > 0)
             {
                 Db.Ocorrencias.AddRange(novos);
-                await Db.SaveChangesAsync();
             }
+            var principal = (await EstadoAutenticacao.GetAuthenticationStateAsync()).User;
+            Db.EventosHistoricos.Add(EventoHistorico.Criar("Importação", null, null,
+                SubstituirBase ? "Base substituída" : "Dados importados", principal.Identity?.Name ?? "Administrador",
+                $"{novos.Count} registro(s) carregados; {arquivadas} arquivado(s); {RegistrosInvalidos + duplicados} ignorado(s)."));
+            await Db.SaveChangesAsync();
             await transacao.CommitAsync();
-            RegistrosAtuais = await Db.Ocorrencias.CountAsync();
+            RegistrosAtuais = await Db.Ocorrencias.CountAsync(x => !x.EstaArquivada);
             MensagemSucesso = SubstituirBase
                 ? $"Base substituída. {novos.Count:N0} ocorrência(s) importada(s); {RegistrosInvalidos + duplicados:N0} ignorada(s)."
                 : $"Importação concluída. {novos.Count:N0} ocorrência(s) importada(s); {RegistrosInvalidos + duplicados:N0} ignorada(s).";

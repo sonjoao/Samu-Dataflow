@@ -64,6 +64,38 @@ public sealed class OcorrenciaEUsuarioTests
         Assert.ThrowsAny<DominioException>(() => Usuario.CriarConta("Ana Silva", "Central", "ana", "hash", "Root"));
     }
 
+    [Fact]
+    public void ArquivarOcorrenciaPreservaRegistroParaConsultaHistorica()
+    {
+        var ocorrencia = NovaOcorrencia();
+
+        ocorrencia.Arquivar();
+
+        Assert.True(ocorrencia.EstaArquivada);
+        Assert.Equal("SAMU-1", ocorrencia.CodigoExterno);
+        Assert.Equal("Boa Viagem", ocorrencia.Bairro);
+    }
+
+    [Fact]
+    public void ConfiguracaoSistemaValidaPeriodoERegistraAtualizacao()
+    {
+        var configuracao = ConfiguracaoSistema.CriarPadrao();
+
+        configuracao.Atualizar("SAMU Recife", "Recife", "pe", 90, "Ana Silva");
+
+        Assert.Equal("SAMU Recife", configuracao.NomeServico);
+        Assert.Equal("PE", configuracao.UnidadeFederativa);
+        Assert.Equal(90, configuracao.DiasPadraoHistorico);
+        Assert.Equal("Ana Silva", configuracao.AtualizadoPor);
+        Assert.Throws<ArgumentException>(() => configuracao.Atualizar("SAMU", "Recife", "PE", 45, "Ana Silva"));
+    }
+
+    [Fact]
+    public void EventoHistoricoNaoAceitaDetalhesSemResponsavel()
+    {
+        Assert.Throws<ArgumentException>(() => EventoHistorico.Criar("Ocorrência", 1, "SAMU-1", "Criada", "", "Registro criado."));
+    }
+
     private static Ocorrencia NovaOcorrencia(
         string? anotacoes = null,
         DesfechoOcorrencia? desfecho = null,

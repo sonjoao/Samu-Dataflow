@@ -1,10 +1,14 @@
 @inherits LayoutComponentBase
 @inject NavigationManager Navegacao
 @inject AuthenticationStateProvider EstadoAutenticacao
+@inject SamuDbContext Db
+@using Microsoft.EntityFrameworkCore
+@using SAMUDataFlow.Domain.Entidades
+@using SAMUDataFlow.Infrastructure.Persistencia
 
 <div class="app-shell">
     <aside class="sidebar">
-        <a class="brand" href="" aria-label="SAMU DataFlow — Início">
+        <a class="brand" href="" aria-label="@NomeServico — Início">
             <StarOfLife Tamanho="34" />
             <span class="brand-text"><span>SAMU</span><span>Data<span class="brand-flow">Flow</span></span></span>
         </a>
@@ -27,7 +31,7 @@
             <svg class="skyline" xmlns="http://www.w3.org/2000/svg" width="140" height="32" viewBox="0 0 160 36" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M2 34H158M8 34V22H17V34M17 27H22V34M27 34V13H34V34M34 34V20H40V34M46 34V24A5 5 0 0 1 56 24V34M62 34V9H68V34M68 34V17H76V34M82 34V25H92V34M98 34V15H105V34M105 34V23H113V34M119 34V19H125V34M130 34V6H135V34M135 34V21H143V34M148 34V27H156V34" />
             </svg>
-            <p class="city">RECIFE - PE</p>
+            <p class="city">@Localidade</p>
             <div class="seal"><StarOfLife Tamanho="26" /><span class="seal-text"><small>SAMU</small><strong>192</strong></span></div>
         </div>
     </aside>
@@ -72,13 +76,15 @@
         new("Mapa", "mapa", "map"),
         new("Relatórios", "relatorios", "file-text"),
         new("Base Histórica", "historico", "database"),
-        new("Configurações", "configuracoes", "settings"),
+        new("Configurações", "configuracoes", "settings", true),
         new("Usuários", "usuarios", "settings", true),
     ];
 
     private string termoBusca = "";
     private string UsuarioNome = "Usuário";
     private string UsuarioSetor = "";
+    private string NomeServico = "SAMU DataFlow";
+    private string Localidade = "RECIFE - PE";
     private bool PodeAdministrar;
     private string Retorno
     {
@@ -96,6 +102,16 @@
         UsuarioNome = auth.User.Identity?.Name ?? "Usuário";
         UsuarioSetor = auth.User.FindFirst("setor")?.Value ?? auth.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
         PodeAdministrar = auth.User.IsInRole(SAMUDataFlow.Domain.Entidades.Usuario.AdministradorCompleto);
+        try
+        {
+            var config = await Db.ConfiguracoesSistema.AsNoTracking().SingleOrDefaultAsync(x => x.Id == ConfiguracaoSistema.IdUnico);
+            if (config is not null)
+            {
+                NomeServico = config.NomeServico;
+                Localidade = $"{config.Municipio} - {config.UnidadeFederativa}".ToUpperInvariant();
+            }
+        }
+        catch { /* Mantém a identificação padrão quando a base está indisponível. */ }
     }
 
     private void AoPressionarTecla(KeyboardEventArgs e)

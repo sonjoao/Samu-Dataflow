@@ -54,6 +54,16 @@ observações extras e acompanhante aparecem no cadastro, edição e detalhe. Os
 são: encaminhado para hospital, atendido no local, recusa, óbito, não localizado,
 cancelada e outro. Registros existentes permanecem válidos com esses campos vazios.
 
+## Base histórica e configurações
+
+- **Base Histórica** consulta ocorrências por período, código, bairro e status, incluindo registros arquivados; a tela é somente leitura e preserva a matriz de papéis.
+- Ao substituir a base numa importação, os registros ativos são arquivados e continuam disponíveis na Base Histórica. Painel, mapa e relatórios operacionais consideram somente a base ativa.
+- A aba **Atividade registrada** registra novas ocorrências, alterações dos detalhes, importações, substituições, alterações de perfis e configurações. O log contém responsável, ação, horário e resumo, sem copiar anotações clínicas ou informação de acompanhante. Eventos anteriores à ativação dessa migration não podem ser reconstruídos.
+- **Configurações** é exclusiva do Administrador 2. Permite ajustar nome do serviço, município, UF e período inicial do histórico (30, 90, 180 ou 365 dias). A escolha de tema continua individual e salva no navegador.
+- A migration `HistoricoConfiguracoesArquivo` cria as tabelas de atividade e configurações, fornece valores iniciais seguros e adiciona o marcador de arquivamento sem apagar registros existentes. Em desenvolvimento, a aplicação aplica migrations na inicialização. Em produção, aplique-as com:
+
+      dotnet ef database update --project src/SAMUDataFlow.Infrastructure --startup-project src/SAMUDataFlow.Web
+
 ## Importação de dados
 
 - A página **Importar dados** aceita o arquivo SQL PostgreSQL `samu_mock_postgres.sql` (até 50 MB).
