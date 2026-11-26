@@ -30,6 +30,14 @@ namespace SAMUDataFlow.Infrastructure.Persistencia.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("Acompanhante")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("AnotacoesParamedicos")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
                     b.Property<string>("Bairro")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -46,6 +54,10 @@ namespace SAMUDataFlow.Infrastructure.Persistencia.Migrations
                     b.Property<DateTime?>("DataChegada")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("Desfecho")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
                     b.Property<string>("Distrito")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -56,11 +68,19 @@ namespace SAMUDataFlow.Infrastructure.Persistencia.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
 
+                    b.Property<string>("HospitalDestino")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<double?>("Latitude")
                         .HasColumnType("double precision");
 
                     b.Property<double?>("Longitude")
                         .HasColumnType("double precision");
+
+                    b.Property<string>("ObservacoesExtras")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
 
                     b.Property<DateTime>("RegistradoEm")
                         .HasColumnType("timestamp with time zone");
@@ -98,10 +118,24 @@ namespace SAMUDataFlow.Infrastructure.Persistencia.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("Login")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<string>("Nome")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Papel")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasDefaultValue("Administrador 1");
+
+                    b.Property<string>("SenhaHash")
+                        .HasColumnType("text");
 
                     b.Property<string>("Setor")
                         .IsRequired()
@@ -109,6 +143,9 @@ namespace SAMUDataFlow.Infrastructure.Persistencia.Migrations
                         .HasColumnType("character varying(100)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Login")
+                        .IsUnique();
 
                     b.ToTable("usuarios", (string)null);
                 });

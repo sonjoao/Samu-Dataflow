@@ -7,6 +7,7 @@
 @using SAMUDataFlow.Infrastructure.Persistencia
 @inject SamuDbContext Db
 @inject NavigationManager Navegacao
+@inject AuthenticationStateProvider EstadoAutenticacao
 
 <PageTitle>Ocorrências — SAMU DataFlow</PageTitle>
 
@@ -18,9 +19,12 @@
             <p class="page-subtitle">Consulte e acompanhe os atendimentos registrados.</p>
         </div>
         <div class="heading-actions">
+            @if (PodeGerenciar)
+            {
             <button class="button button-primary" type="button" @onclick="AbrirCadastro">
                 <Icon Nome="square-plus" Tamanho="15" /> Adicionar ocorrência
             </button>
+            }
             <a class="button button-secondary" href="importar">
                 <Icon Nome="upload" Tamanho="15" /> Importar SQL
             </a>
@@ -86,7 +90,7 @@
         }
         else if (Resultados.Count == 0)
         {
-            <div class="table-empty"><strong>Nenhuma ocorrência encontrada</strong><span>Tente mudar os filtros, <button class="text-link" type="button" @onclick="AbrirCadastro">adicione uma ocorrência</button> ou <a class="text-link" href="importar">importe um arquivo SQL</a>.</span></div>
+            <div class="table-empty"><strong>Nenhuma ocorrência encontrada</strong><span>Tente mudar os filtros. @if (PodeGerenciar) { <text><button class="text-link" type="button" @onclick="AbrirCadastro">Adicione uma ocorrência</button> ou </text> }<a class="text-link" href="importar">@(PodeGerenciar ? "importe um arquivo SQL" : "consulte a tela de importação")</a>.</span></div>
         }
         else
         {
@@ -155,6 +159,15 @@
                     </select>
                 </label>
                 <label class="filter-field"><span>Chegada da equipe (opcional)</span><input type="datetime-local" @bind="NovoDataChegada" @bind:format="yyyy-MM-ddTHH:mm" /></label>
+                <label class="filter-field"><span>Desfecho</span>
+                    <select @bind="NovoDesfecho"><option value="">Não informado</option>
+                        @foreach (var item in Enum.GetValues<DesfechoOcorrencia>()) { <option value="@item">@item.Rotulo()</option> }
+                    </select>
+                </label>
+                <label class="filter-field"><span>Hospital de destino</span><input @bind="NovoHospital" maxlength="200" /></label>
+                <label class="filter-field"><span>Acompanhante</span><input @bind="NovoAcompanhante" maxlength="200" placeholder="Nome ou informação sobre acompanhante" /></label>
+                <label class="filter-field filter-search"><span>Anotações dos paramédicos</span><textarea @bind="NovasAnotacoes" maxlength="4000" rows="3"></textarea></label>
+                <label class="filter-field filter-search"><span>Observações extras</span><textarea @bind="NovasObservacoes" maxlength="4000" rows="3"></textarea></label>
             </div>
             <div class="dialog-actions">
                 <button type="button" class="button button-secondary" @onclick="FecharCadastro">Cancelar</button>
@@ -182,8 +195,31 @@
                 <div><span>Tempo de resposta</span><strong>@(Selecionada.TempoRespostaMinutos.HasValue ? $"{Selecionada.TempoRespostaMinutos.Value:N1} min" : "Ainda não concluído")</strong></div>
                 <div><span>Coordenadas</span><strong>@Coordenadas(Selecionada)</strong></div>
                 <div><span>Registrado em</span><strong>@DataRecife(Selecionada.RegistradoEm).ToString("dd/MM/yyyy 'às' HH:mm", PtBr)</strong></div>
+                <div><span>Desfecho</span><strong>@(Selecionada.Desfecho?.Rotulo() ?? "Não informado")</strong></div>
+                <div><span>Hospital de destino</span><strong>@(Selecionada.HospitalDestino ?? "Não informado")</strong></div>
+                <div><span>Acompanhante</span><strong>@(Selecionada.Acompanhante ?? "Não informado")</strong></div>
+                <div class="detail-wide"><span>Anotações dos paramédicos</span><strong>@(Selecionada.AnotacoesParamedicos ?? "Não informadas")</strong></div>
+                <div class="detail-wide"><span>Observações extras</span><strong>@(Selecionada.ObservacoesExtras ?? "Não informadas")</strong></div>
             </div>
-            <div class="dialog-actions"><button type="button" class="button button-secondary" @onclick="FecharDetalhes">Fechar</button></div>
+            @if (EditandoDetalhes)
+            {
+                <div class="mapping-grid">
+                    <label class="filter-field"><span>Desfecho</span><select @bind="EdicaoDesfecho"><option value="">Não informado</option>@foreach (var item in Enum.GetValues<DesfechoOcorrencia>()) { <option value="@item">@item.Rotulo()</option> }</select></label>
+                    <label class="filter-field"><span>Hospital de destino</span><input @bind="EdicaoHospital" maxlength="200" /></label>
+                    <label class="filter-field"><span>Acompanhante</span><input @bind="EdicaoAcompanhante" maxlength="200" /></label>
+                    <label class="filter-field filter-search"><span>Anotações dos paramédicos</span><textarea @bind="EdicaoAnotacoes" maxlength="4000" rows="3"></textarea></label>
+                    <label class="filter-field filter-search"><span>Observações extras</span><textarea @bind="EdicaoObservacoes" maxlength="4000" rows="3"></textarea></label>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(ErroEdicao)) { <div class="notice notice-error" role="alert">@ErroEdicao</div> }
+                <div class="dialog-actions"><button type="button" class="button button-secondary" @onclick="CancelarEdicao">Cancelar</button><button type="button" class="button button-primary" disabled="@SalvandoEdicao" @onclick="SalvarEdicaoAsync">@(SalvandoEdicao ? "Salvando…" : "Salvar detalhes")</button></div>
+            }
+            else
+            {
+                <div class="dialog-actions">
+                    @if (PodeGerenciar) { <button type="button" class="button button-primary" @onclick="IniciarEdicao">Editar detalhes</button> }
+                    <button type="button" class="button button-secondary" @onclick="FecharDetalhes">Fechar</button>
+                </div>
+            }
         </section>
     </div>
 }
@@ -206,6 +242,15 @@
     private int Pagina = 1;
     private Ocorrencia? Selecionada;
     private bool MostrarCadastro;
+    private bool PodeGerenciar;
+    private bool EditandoDetalhes;
+    private bool SalvandoEdicao;
+    private string? ErroEdicao;
+    private string EdicaoAnotacoes = "";
+    private string EdicaoHospital = "";
+    private string EdicaoObservacoes = "";
+    private string EdicaoAcompanhante = "";
+    private DesfechoOcorrencia? EdicaoDesfecho;
     private bool SalvandoCadastro;
     private string? ErroCadastro;
     private string NovoCodigo = "";
@@ -216,6 +261,11 @@
     private TipoAgravo NovoAgravo = TipoAgravo.Trauma;
     private Gravidade NovaGravidade = Gravidade.Media;
     private StatusOcorrencia NovoStatus = StatusOcorrencia.EmAndamento;
+    private DesfechoOcorrencia? NovoDesfecho;
+    private string NovoHospital = "";
+    private string NovoAcompanhante = "";
+    private string NovasAnotacoes = "";
+    private string NovasObservacoes = "";
 
     private List<Ocorrencia> Resultados
     {
@@ -253,6 +303,8 @@
 
     protected override async Task OnInitializedAsync()
     {
+        var estado = await EstadoAutenticacao.GetAuthenticationStateAsync();
+        PodeGerenciar = estado.User.IsInRole(Usuario.AdministradorCompleto);
         Busca = BuscaInicial ?? "";
         await CarregarAsync();
     }
@@ -288,11 +340,48 @@
 
     private void PaginaAnterior() { if (Pagina > 1) Pagina--; }
     private void ProximaPagina() { if (Pagina < TotalPaginas) Pagina++; }
-    private void AbrirDetalhes(Ocorrencia item) => Selecionada = item;
-    private void FecharDetalhes() => Selecionada = null;
+    private void AbrirDetalhes(Ocorrencia item) { Selecionada = item; EditandoDetalhes = false; }
+    private void FecharDetalhes() { Selecionada = null; EditandoDetalhes = false; }
+
+    private void IniciarEdicao()
+    {
+        if (!PodeGerenciar || Selecionada is null) return;
+        EdicaoAnotacoes = Selecionada.AnotacoesParamedicos ?? "";
+        EdicaoHospital = Selecionada.HospitalDestino ?? "";
+        EdicaoObservacoes = Selecionada.ObservacoesExtras ?? "";
+        EdicaoAcompanhante = Selecionada.Acompanhante ?? "";
+        EdicaoDesfecho = Selecionada.Desfecho;
+        ErroEdicao = null;
+        EditandoDetalhes = true;
+    }
+
+    private void CancelarEdicao() { EditandoDetalhes = false; ErroEdicao = null; }
+
+    private async Task SalvarEdicaoAsync()
+    {
+        if (!await AdministradorCompletoAtualAsync() || Selecionada is null || SalvandoEdicao)
+        { ErroEdicao = "Seu perfil permite somente consulta."; return; }
+        SalvandoEdicao = true;
+        try
+        {
+            var atualizada = await Db.Ocorrencias.SingleAsync(x => x.Id == Selecionada.Id);
+            atualizada.Atualizar(atualizada.DataChamado, atualizada.DataChegada, atualizada.Distrito, atualizada.Bairro,
+                atualizada.TipoAgravo, atualizada.Gravidade, atualizada.Status, atualizada.Latitude, atualizada.Longitude,
+                EdicaoAnotacoes, EdicaoDesfecho, EdicaoHospital, EdicaoObservacoes, EdicaoAcompanhante);
+            await Db.SaveChangesAsync();
+            var indice = Todas.FindIndex(x => x.Id == atualizada.Id);
+            if (indice >= 0) Todas[indice] = atualizada;
+            Selecionada = atualizada;
+            EditandoDetalhes = false;
+            Sucesso = $"Detalhes da ocorrência {atualizada.CodigoExterno} atualizados.";
+        }
+        catch (Exception ex) { ErroEdicao = ex.GetBaseException() is SAMUDataFlow.Domain.Excecoes.DominioException ? ex.GetBaseException().Message : "Não foi possível salvar os detalhes."; }
+        finally { SalvandoEdicao = false; }
+    }
 
     private void AbrirCadastro()
     {
+        if (!PodeGerenciar) return;
         ErroCadastro = null;
         Sucesso = null;
         NovoCodigo = "";
@@ -303,6 +392,8 @@
         NovoAgravo = TipoAgravo.Trauma;
         NovaGravidade = Gravidade.Media;
         NovoStatus = StatusOcorrencia.EmAndamento;
+        NovoDesfecho = null;
+        NovoHospital = NovoAcompanhante = NovasAnotacoes = NovasObservacoes = "";
         MostrarCadastro = true;
     }
 
@@ -310,6 +401,7 @@
 
     private async Task SalvarCadastroAsync()
     {
+        if (!await AdministradorCompletoAtualAsync()) { ErroCadastro = "Seu perfil permite somente consulta."; return; }
         if (SalvandoCadastro) return;
         ErroCadastro = null;
         var codigo = NovoCodigo.Trim();
@@ -332,7 +424,9 @@
             DateTime? chegadaUtc = NovoDataChegada.HasValue
                 ? DateTime.SpecifyKind(NovoDataChegada.Value.AddHours(3), DateTimeKind.Utc)
                 : null;
-            var nova = Ocorrencia.Criar(codigo, chamadoUtc, chegadaUtc, NovoDistrito, NovoBairro, NovoAgravo, NovaGravidade, NovoStatus);
+            var nova = Ocorrencia.Criar(codigo, chamadoUtc, chegadaUtc, NovoDistrito, NovoBairro, NovoAgravo, NovaGravidade, NovoStatus,
+                anotacoesParamedicos: NovasAnotacoes, desfecho: NovoDesfecho, hospitalDestino: NovoHospital,
+                observacoesExtras: NovasObservacoes, acompanhante: NovoAcompanhante);
             Db.Ocorrencias.Add(nova);
             await Db.SaveChangesAsync();
             Todas.Add(nova);
@@ -347,6 +441,15 @@
                 : "Não foi possível salvar a ocorrência. Confira os campos e a conexão com o banco.";
         }
         finally { SalvandoCadastro = false; }
+    }
+
+    private async Task<bool> AdministradorCompletoAtualAsync()
+    {
+        var principal = (await EstadoAutenticacao.GetAuthenticationStateAsync()).User;
+        var id = principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return principal.IsInRole(Usuario.AdministradorCompleto)
+            && int.TryParse(id, out var usuarioId)
+            && await Db.Usuarios.AsNoTracking().AnyAsync(x => x.Id == usuarioId && x.Papel == Usuario.AdministradorCompleto);
     }
 
     private static DateTime DataRecife(DateTime utc) => utc.AddHours(-3);

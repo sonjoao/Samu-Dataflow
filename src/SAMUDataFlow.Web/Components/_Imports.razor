@@ -1,6 +1,8 @@
 @using System.Net.Http
 @using System.Net.Http.Json
 @using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Routing
 @using Microsoft.AspNetCore.Components.Web
 @using static Microsoft.AspNetCore.Components.Web.RenderMode
@@ -10,3 +12,4 @@
 @using SAMUDataFlow.Web.Components
 @using SAMUDataFlow.Web.Components.Layout
 @using SAMUDataFlow.Web.Components.Shared
+@attribute [Authorize]

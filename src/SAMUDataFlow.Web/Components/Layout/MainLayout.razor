@@ -1,5 +1,6 @@
 @inherits LayoutComponentBase
 @inject NavigationManager Navegacao
+@inject AuthenticationStateProvider EstadoAutenticacao
 
 <div class="app-shell">
     <aside class="sidebar">
@@ -14,11 +15,14 @@
         <nav class="nav" aria-label="Navegação principal">
             @foreach (var item in Itens)
             {
+                @if (!item.AdminOnly || PodeAdministrar)
+                {
                 <NavLink class="nav-item" href="@item.Rota"
                          Match="@(item.Rota.Length == 0 ? NavLinkMatch.All : NavLinkMatch.Prefix)">
                     <Icon Nome="@item.Icone" />
                     <span>@item.Rotulo</span>
                 </NavLink>
+                }
             }
         </nav>
 
@@ -59,6 +63,7 @@
                     </span>
                     <Icon Nome="chevron-down" Tamanho="16" />
                 </div>
+                <form method="post" action="/logout"><button class="button button-secondary" type="submit">Sair</button></form>
             </div>
         </header>
 
@@ -75,7 +80,7 @@
 </div>
 
 @code {
-    private sealed record ItemMenu(string Rotulo, string Rota, string Icone);
+    private sealed record ItemMenu(string Rotulo, string Rota, string Icone, bool AdminOnly = false);
 
     private static readonly ItemMenu[] Itens =
     [
@@ -86,19 +91,28 @@
         new("Relatórios", "relatorios", "file-text"),
         new("Base Histórica", "historico", "database"),
         new("Configurações", "configuracoes", "settings"),
+        new("Usuários", "usuarios", "settings", true),
     ];
 
     private string termoBusca = "";
 
-    // Identificação genérica: a aplicação ainda não tem autenticação de usuários.
-    private const string UsuarioNome = "Operação SAMU";
-    private const string UsuarioSetor = "Acesso local";
+    private string UsuarioNome = "Usuário";
+    private string UsuarioSetor = "";
+    private bool PodeAdministrar;
 
-    private static string Iniciais => string.Concat(
+    private string Iniciais => string.Concat(
         UsuarioNome.Split(' ', StringSplitOptions.RemoveEmptyEntries)
             .Where(p => p.Length > 2)
             .Take(2)
             .Select(p => char.ToUpperInvariant(p[0])));
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await EstadoAutenticacao.GetAuthenticationStateAsync();
+        UsuarioNome = auth.User.Identity?.Name ?? "Usuário";
+        UsuarioSetor = auth.User.FindFirst("setor")?.Value ?? auth.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
+        PodeAdministrar = auth.User.IsInRole(SAMUDataFlow.Domain.Entidades.Usuario.AdministradorCompleto);
+    }
 
     private void AoPressionarTecla(KeyboardEventArgs e)
     {

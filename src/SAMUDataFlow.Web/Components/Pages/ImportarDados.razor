@@ -8,6 +8,7 @@
 @using SAMUDataFlow.Domain.Enums
 @using SAMUDataFlow.Infrastructure.Persistencia
 @inject SamuDbContext Db
+@inject AuthenticationStateProvider EstadoAutenticacao
 
 <PageTitle>Importar dados — SAMU DataFlow</PageTitle>
 
@@ -49,7 +50,7 @@
         </div>
 
         <label class="folder-dropzone">
-            <InputFile class="folder-input" OnChange="SelecionarArquivoAsync" accept=".sql,text/plain" />
+            <InputFile class="folder-input" OnChange="SelecionarArquivoAsync" accept=".sql,text/plain" disabled="@(!PodeImportar)" />
             <span class="upload-icon"><Icon Nome="upload" Tamanho="24" /></span>
             <strong>Escolha o arquivo samu_mock_postgres.sql</strong>
             <span>Arquivo SQL PostgreSQL · até 50 MB</span>
@@ -77,7 +78,7 @@
             </div>
             <div class="mapping-note">Prontos para importar: @OcorrenciasValidas.Count.ToString("N0", CulturaPtBr). · Ignorados por dados incompletos ou não reconhecidos: @RegistrosInvalidos.ToString("N0", CulturaPtBr) · Duplicados na base serão ignorados.</div>
             <label class="replace-option">
-                <input type="checkbox" @bind="SubstituirBase" />
+                <input type="checkbox" @bind="SubstituirBase" disabled="@(!PodeImportar)" />
                 <span><strong>Substituir as ocorrências atuais</strong><small>Apaga todas as ocorrências do painel e carrega as válidas deste arquivo. Faça isso somente se deseja trocar a base inteira.</small></span>
             </label>
             @if (SubstituirBase)
@@ -85,7 +86,7 @@
                 <div class="notice notice-error replace-warning">A base atual será substituída após uma confirmação adicional.</div>
             }
             <div class="import-actions">
-                <button class="button button-primary" type="button" disabled="@(OcorrenciasValidas.Count == 0 || Importando)" @onclick="ImportarAsync">
+                <button class="button button-primary" type="button" disabled="@(OcorrenciasValidas.Count == 0 || Importando || !PodeImportar)" @onclick="ImportarAsync">
                     @(Importando ? "Importando…" : SubstituirBase ? "Revisar substituição" : "Importar dados")
                 </button>
             </div>
@@ -98,7 +99,7 @@
             <section class="dialog-card" role="alertdialog" aria-modal="true" aria-labelledby="replace-title">
                 <div class="dialog-heading"><div><p class="eyebrow">CONFIRMAÇÃO NECESSÁRIA</p><h2 id="replace-title">Substituir a base atual?</h2></div><button type="button" class="dialog-close" aria-label="Cancelar" @onclick="CancelarSubstituicao">×</button></div>
                 <p class="dialog-intro">Isso apagará as ocorrências atualmente no painel e gravará @OcorrenciasValidas.Count.ToString("N0", CulturaPtBr) registros válidos do arquivo SQL. O script não será executado no banco.</p>
-                <div class="dialog-actions"><button type="button" class="button button-secondary" @onclick="CancelarSubstituicao">Cancelar</button><button type="button" class="button button-primary" @onclick="ConfirmarSubstituicaoAsync">Apagar base atual e importar</button></div>
+                <div class="dialog-actions"><button type="button" class="button button-secondary" @onclick="CancelarSubstituicao">Cancelar</button><button type="button" class="button button-primary" disabled="@(!PodeImportar)" @onclick="ConfirmarSubstituicaoAsync">Apagar base atual e importar</button></div>
             </section>
         </div>
     }
@@ -117,15 +118,19 @@
     private bool Importando;
     private bool SubstituirBase;
     private bool MostrarConfirmacaoSubstituicao;
+    private bool PodeImportar;
 
     protected override async Task OnInitializedAsync()
     {
+        var auth = await EstadoAutenticacao.GetAuthenticationStateAsync();
+        PodeImportar = auth.User.IsInRole(Usuario.AdministradorCompleto);
         try { RegistrosAtuais = await Db.Ocorrencias.CountAsync(); }
         catch { MensagemErro = "Não foi possível consultar a base de ocorrências. Confira a conexão com o banco."; }
     }
 
     private async Task SelecionarArquivoAsync(InputFileChangeEventArgs e)
     {
+        if (!await AdministradorCompletoAtualAsync()) { MensagemErro = "Seu perfil permite somente consulta."; return; }
         NomeArquivo = null;
         OcorrenciasValidas.Clear();
         RegistrosEncontrados = 0;
@@ -169,6 +174,7 @@
 
     private async Task ImportarAsync()
     {
+        if (!await AdministradorCompletoAtualAsync()) { MensagemErro = "Seu perfil permite somente consulta."; return; }
         if (OcorrenciasValidas.Count == 0 || Importando) return;
         if (SubstituirBase) { MostrarConfirmacaoSubstituicao = true; return; }
         await ExecutarImportacaoAsync();
@@ -177,12 +183,14 @@
     private void CancelarSubstituicao() => MostrarConfirmacaoSubstituicao = false;
     private async Task ConfirmarSubstituicaoAsync()
     {
+        if (!await AdministradorCompletoAtualAsync()) { MensagemErro = "Seu perfil permite somente consulta."; return; }
         MostrarConfirmacaoSubstituicao = false;
         await ExecutarImportacaoAsync();
     }
 
     private async Task ExecutarImportacaoAsync()
     {
+        if (!await AdministradorCompletoAtualAsync()) { MensagemErro = "Seu perfil permite somente consulta."; return; }
         if (OcorrenciasValidas.Count == 0 || Importando) return;
         Importando = true;
         MensagemErro = null;
@@ -219,6 +227,15 @@
             MensagemErro = "A importação falhou e foi revertida. Confira a conexão com o banco; nenhum conteúdo do arquivo foi incluído nesta mensagem.";
         }
         finally { Importando = false; }
+    }
+
+    private async Task<bool> AdministradorCompletoAtualAsync()
+    {
+        var principal = (await EstadoAutenticacao.GetAuthenticationStateAsync()).User;
+        var id = principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return principal.IsInRole(Usuario.AdministradorCompleto)
+            && int.TryParse(id, out var usuarioId)
+            && await Db.Usuarios.AsNoTracking().AnyAsync(x => x.Id == usuarioId && x.Papel == Usuario.AdministradorCompleto);
     }
 
     private sealed record ResultadoLeitura(List<Ocorrencia> Ocorrencias, int Total, int Invalidos);

@@ -19,6 +19,11 @@ public sealed class OcorrenciaConfiguracao : IEntityTypeConfiguration<Ocorrencia
         b.Property(x => x.TipoAgravo).HasConversion<string>().HasMaxLength(30);
         b.Property(x => x.Gravidade).HasConversion<string>().HasMaxLength(30);
         b.Property(x => x.Status).HasConversion<string>().HasMaxLength(30);
+        b.Property(x => x.Desfecho).HasConversion<string>().HasMaxLength(40);
+        b.Property(x => x.AnotacoesParamedicos).HasMaxLength(4000);
+        b.Property(x => x.HospitalDestino).HasMaxLength(200);
+        b.Property(x => x.ObservacoesExtras).HasMaxLength(4000);
+        b.Property(x => x.Acompanhante).HasMaxLength(200);
 
         b.Property(x => x.DataChamado).HasColumnType("timestamp with time zone");
         b.Property(x => x.DataChegada).HasColumnType("timestamp with time zone");

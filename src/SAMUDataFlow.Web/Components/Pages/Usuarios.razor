@@ -1,0 +1,172 @@
+@page "/usuarios"
+@attribute [Authorize(Roles = "Administrador 2")]
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using SAMUDataFlow.Domain.Entidades
+@using SAMUDataFlow.Infrastructure.Persistencia
+@inject SamuDbContext Db
+@inject IPasswordHasher<Usuario> Hasher
+@inject AuthenticationStateProvider EstadoAutenticacao
+@inject NavigationManager Navegacao
+
+<PageTitle>Usuários — SAMU DataFlow</PageTitle>
+<section class="page">
+    <header class="page-heading"><div><p class="eyebrow">ADMINISTRAÇÃO</p><h1>Usuários e permissões</h1><p class="page-subtitle">Gerencie contas e aplique o menor nível de acesso necessário.</p></div></header>
+    @if (!string.IsNullOrWhiteSpace(Mensagem)) { <div class="notice notice-success" role="status">@Mensagem</div> }
+    @if (!string.IsNullOrWhiteSpace(Erro)) { <div class="notice notice-error" role="alert">@Erro</div> }
+
+    <div class="card detail-dialog">
+        <h2 class="section-title">Criar usuário</h2>
+        <div class="mapping-grid">
+            <label class="filter-field"><span>Nome</span><input @bind="Nome" maxlength="100" required /></label>
+            <label class="filter-field"><span>Setor</span><input @bind="Setor" maxlength="100" required /></label>
+            <label class="filter-field"><span>Login</span><input @bind="Login" maxlength="100" autocomplete="off" required /></label>
+            <label class="filter-field"><span>Senha inicial (mínimo 12 caracteres)</span><input type="password" @bind="Senha" minlength="12" autocomplete="new-password" required /></label>
+            <label class="filter-field"><span>Perfil</span><select @bind="Papel"><option value="Administrador 1">Administrador 1 — somente leitura</option><option value="Administrador 2">Administrador 2 — acesso completo</option></select></label>
+        </div>
+        <div class="dialog-actions"><button class="button button-primary" @onclick="CriarAsync">Criar usuário</button></div>
+    </div>
+
+    <div class="card table-card">
+        <div class="table-heading"><h2 class="section-title">Contas cadastradas</h2></div>
+        <div class="table-scroll"><table class="occurrence-table"><thead><tr><th>Nome</th><th>Login</th><th>Setor</th><th>Perfil</th><th>Alterar perfil</th><th>Ativar conta</th><th></th></tr></thead><tbody>
+        @foreach (var usuario in Contas)
+        {
+            <tr><td>@usuario.Nome</td><td>@(usuario.Login ?? "Sem acesso configurado")</td><td>@usuario.Setor</td><td>@usuario.Papel</td><td><select @bind="Papeis[usuario.Id]"><option value="Administrador 1">Administrador 1 — somente leitura</option><option value="Administrador 2">Administrador 2 — acesso completo</option></select><button class="button button-secondary" @onclick="() => SalvarPapelAsync(usuario)">Salvar perfil</button></td>
+                @if (usuario.Login is null)
+                {
+                    <td><input @bind="LoginsLegados[usuario.Id]" placeholder="Novo login" maxlength="100" /><input type="password" @bind="SenhasLegadas[usuario.Id]" placeholder="Senha (12+ caracteres)" /><button class="button button-secondary" @onclick="() => AtivarUsuarioAsync(usuario)">Ativar conta</button></td>
+                }
+                else { <td>Conta ativa</td> }
+                <td><button class="text-button" @onclick="() => PrepararExclusaoAsync(usuario)">Excluir</button></td>
+            </tr>
+        }
+        </tbody></table></div>
+    </div>
+    @if (ExclusaoPendente is not null)
+    {
+        <div class="modal-backdrop" role="presentation"><section class="dialog-card" role="alertdialog" aria-modal="true">
+            <div class="dialog-heading"><h2>Excluir conta?</h2><button class="dialog-close" @onclick="CancelarExclusao">×</button></div>
+            <p>A conta de @ExclusaoPendente.Nome será removida. Esta operação não pode ser desfeita.</p>
+            <div class="dialog-actions"><button class="button button-secondary" @onclick="CancelarExclusao">Cancelar</button><button class="button button-primary" @onclick="ConfirmarExclusaoAsync">Excluir conta</button></div>
+        </section></div>
+    }
+</section>
+
+@code {
+    private List<Usuario> Contas = [];
+    private readonly Dictionary<int, string> Papeis = [];
+    private readonly Dictionary<int, string> LoginsLegados = [];
+    private readonly Dictionary<int, string> SenhasLegadas = [];
+    private string Nome = "";
+    private string Setor = "";
+    private string Login = "";
+    private string Senha = "";
+    private string Papel = Usuario.AdministradorSomenteLeitura;
+    private string? Erro;
+    private string? Mensagem;
+    private Usuario? ExclusaoPendente;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!await AdminCompletoAsync()) { Navegacao.NavigateTo("/acesso-negado", forceLoad: true); return; }
+        await CarregarAsync();
+    }
+
+    private async Task CarregarAsync()
+    {
+        Contas = await Db.Usuarios.AsNoTracking().OrderBy(x => x.Nome).ToListAsync();
+        Papeis.Clear();
+        foreach (var usuario in Contas)
+        {
+            Papeis[usuario.Id] = usuario.Papel;
+            LoginsLegados.TryAdd(usuario.Id, "");
+            SenhasLegadas.TryAdd(usuario.Id, "");
+        }
+    }
+
+    private async Task<bool> AdminCompletoAsync()
+    {
+        var estado = await EstadoAutenticacao.GetAuthenticationStateAsync();
+        var id = estado.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return estado.User.IsInRole(Usuario.AdministradorCompleto)
+            && int.TryParse(id, out var usuarioId)
+            && await Db.Usuarios.AsNoTracking().AnyAsync(x => x.Id == usuarioId && x.Papel == Usuario.AdministradorCompleto);
+    }
+
+    private async Task CriarAsync()
+    {
+        if (!await AdminCompletoAsync()) return;
+        Erro = Mensagem = null;
+        if (string.IsNullOrWhiteSpace(Nome) || string.IsNullOrWhiteSpace(Setor) || string.IsNullOrWhiteSpace(Login) || Senha.Length < 12)
+        { Erro = "Preencha todos os campos. A senha deve ter pelo menos 12 caracteres."; return; }
+        try
+        {
+            if (await Db.Usuarios.AnyAsync(x => x.Login == Login.Trim())) { Erro = "Esse login já está em uso."; return; }
+            var usuario = Usuario.CriarConta(Nome, Setor, Login, "temporario", Papel);
+            var hash = Hasher.HashPassword(usuario, Senha);
+            Db.Usuarios.Add(Usuario.CriarConta(Nome, Setor, Login, hash, Papel));
+            await Db.SaveChangesAsync();
+            Nome = Setor = Login = Senha = "";
+            Mensagem = "Usuário criado.";
+            await CarregarAsync();
+        }
+        catch (Exception ex) { Erro = ex.GetBaseException().Message.Contains("unique", StringComparison.OrdinalIgnoreCase) ? "Esse login já está em uso." : "Não foi possível criar o usuário."; }
+    }
+
+    private async Task SalvarPapelAsync(Usuario usuario)
+    {
+        if (!await AdminCompletoAsync()) return;
+        var idAtual = (await EstadoAutenticacao.GetAuthenticationStateAsync()).User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (int.TryParse(idAtual, out var usuarioAtualId) && usuario.Id == usuarioAtualId
+            && Papeis[usuario.Id] != Usuario.AdministradorCompleto)
+        { Erro = "Não é possível remover seu próprio acesso administrativo."; return; }
+        var rastreado = await Db.Usuarios.SingleAsync(x => x.Id == usuario.Id);
+        rastreado.AlterarPapel(Papeis[usuario.Id]);
+        await Db.SaveChangesAsync();
+        Mensagem = $"Perfil de {usuario.Nome} atualizado.";
+        await CarregarAsync();
+    }
+
+    private async Task AtivarUsuarioAsync(Usuario usuario)
+    {
+        if (!await AdminCompletoAsync()) return;
+        var login = LoginsLegados.GetValueOrDefault(usuario.Id, "").Trim();
+        var senha = SenhasLegadas.GetValueOrDefault(usuario.Id, "");
+        if (login.Length == 0 || senha.Length < 12) { Erro = "Informe um login e uma senha com pelo menos 12 caracteres."; return; }
+        if (await Db.Usuarios.AnyAsync(x => x.Login == login)) { Erro = "Esse login já está em uso."; return; }
+        var rastreado = await Db.Usuarios.SingleAsync(x => x.Id == usuario.Id);
+        rastreado.AtivarConta(login, Hasher.HashPassword(rastreado, senha));
+        try
+        {
+            await Db.SaveChangesAsync();
+            Mensagem = $"Conta de {usuario.Nome} ativada.";
+            SenhasLegadas[usuario.Id] = "";
+            await CarregarAsync();
+        }
+        catch { Erro = "Não foi possível ativar a conta. Confira se o login já está em uso."; }
+    }
+
+    private async Task PrepararExclusaoAsync(Usuario usuario)
+    {
+        if (await AdminCompletoAsync()) ExclusaoPendente = usuario;
+    }
+
+    private void CancelarExclusao() => ExclusaoPendente = null;
+
+    private async Task ConfirmarExclusaoAsync()
+    {
+        if (!await AdminCompletoAsync() || ExclusaoPendente is null) return;
+        var idAtual = (await EstadoAutenticacao.GetAuthenticationStateAsync()).User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (!int.TryParse(idAtual, out var usuarioAtualId) || usuarioAtualId == ExclusaoPendente.Id)
+        { Erro = "Não é possível excluir a conta em uso."; ExclusaoPendente = null; return; }
+        if (ExclusaoPendente.Papel == Usuario.AdministradorCompleto && await Db.Usuarios.CountAsync(x => x.Papel == Usuario.AdministradorCompleto) <= 1)
+        { Erro = "Não é possível excluir o último Administrador 2."; ExclusaoPendente = null; return; }
+        var usuario = await Db.Usuarios.SingleAsync(x => x.Id == ExclusaoPendente.Id);
+        Db.Usuarios.Remove(usuario);
+        await Db.SaveChangesAsync();
+        Mensagem = $"Conta de {usuario.Nome} excluída.";
+        ExclusaoPendente = null;
+        await CarregarAsync();
+    }
+}

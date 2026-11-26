@@ -24,6 +24,11 @@ public sealed class Ocorrencia
     public double? Latitude { get; private set; }
     public double? Longitude { get; private set; }
     public double? TempoRespostaMinutos { get; private set; }
+    public string? AnotacoesParamedicos { get; private set; }
+    public DesfechoOcorrencia? Desfecho { get; private set; }
+    public string? HospitalDestino { get; private set; }
+    public string? ObservacoesExtras { get; private set; }
+    public string? Acompanhante { get; private set; }
     public DateTime RegistradoEm { get; private set; }
 
     private Ocorrencia() { } // exigido pelo EF Core
@@ -39,7 +44,12 @@ public sealed class Ocorrencia
         StatusOcorrencia status,
         double? latitude = null,
         double? longitude = null,
-        DateTime? registradoEm = null)
+        DateTime? registradoEm = null,
+        string? anotacoesParamedicos = null,
+        DesfechoOcorrencia? desfecho = null,
+        string? hospitalDestino = null,
+        string? observacoesExtras = null,
+        string? acompanhante = null)
     {
         var codigo = Texto.Normalizar(codigoExterno);
 
@@ -52,7 +62,8 @@ public sealed class Ocorrencia
             RegistradoEm = ParaUtc(registradoEm ?? DateTime.UtcNow)
         };
 
-        ocorrencia.Aplicar(dataChamado, dataChegada, distrito, bairro, tipoAgravo, gravidade, status, latitude, longitude);
+        ocorrencia.Aplicar(dataChamado, dataChegada, distrito, bairro, tipoAgravo, gravidade, status, latitude, longitude,
+            anotacoesParamedicos, desfecho, hospitalDestino, observacoesExtras, acompanhante);
         return ocorrencia;
     }
 
@@ -66,8 +77,14 @@ public sealed class Ocorrencia
         Gravidade gravidade,
         StatusOcorrencia status,
         double? latitude = null,
-        double? longitude = null) =>
-        Aplicar(dataChamado, dataChegada, distrito, bairro, tipoAgravo, gravidade, status, latitude, longitude);
+        double? longitude = null,
+        string? anotacoesParamedicos = null,
+        DesfechoOcorrencia? desfecho = null,
+        string? hospitalDestino = null,
+        string? observacoesExtras = null,
+        string? acompanhante = null) =>
+        Aplicar(dataChamado, dataChegada, distrito, bairro, tipoAgravo, gravidade, status, latitude, longitude,
+            anotacoesParamedicos, desfecho, hospitalDestino, observacoesExtras, acompanhante);
 
     private void Aplicar(
         DateTime dataChamado,
@@ -78,7 +95,12 @@ public sealed class Ocorrencia
         Gravidade gravidade,
         StatusOcorrencia status,
         double? latitude,
-        double? longitude)
+        double? longitude,
+        string? anotacoesParamedicos,
+        DesfechoOcorrencia? desfecho,
+        string? hospitalDestino,
+        string? observacoesExtras,
+        string? acompanhante)
     {
         var distritoOk = Texto.Titulo(distrito);
         var bairroOk = Texto.Titulo(bairro);
@@ -97,6 +119,14 @@ public sealed class Ocorrencia
 
         if (!Enum.IsDefined(status))
             throw new OcorrenciaInvalidaException("Status inválido.");
+
+        if (desfecho.HasValue && !Enum.IsDefined(desfecho.Value))
+            throw new OcorrenciaInvalidaException("Desfecho inválido.");
+
+        ValidarTextoOpcional(anotacoesParamedicos, 4000, "As anotações dos paramédicos");
+        ValidarTextoOpcional(hospitalDestino, 200, "O hospital de destino");
+        ValidarTextoOpcional(observacoesExtras, 4000, "As observações extras");
+        ValidarTextoOpcional(acompanhante, 200, "A informação sobre acompanhante");
 
         if (dataChamado == default)
             throw new OcorrenciaInvalidaException("Data do chamado inválida.");
@@ -125,10 +155,24 @@ public sealed class Ocorrencia
         Status = status;
         Latitude = latitude;
         Longitude = longitude;
+        AnotacoesParamedicos = TextoOpcional(anotacoesParamedicos);
+        Desfecho = desfecho;
+        HospitalDestino = TextoOpcional(hospitalDestino);
+        ObservacoesExtras = TextoOpcional(observacoesExtras);
+        Acompanhante = TextoOpcional(acompanhante);
         TempoRespostaMinutos = chegada.HasValue
             ? Math.Round((chegada.Value - chamado).TotalMinutes, 2)
             : null;
     }
+
+    private static void ValidarTextoOpcional(string? valor, int maximo, string campo)
+    {
+        if (valor?.Trim().Length > maximo)
+            throw new OcorrenciaInvalidaException($"{campo} deve ter no máximo {maximo} caracteres.");
+    }
+
+    private static string? TextoOpcional(string? valor) =>
+        string.IsNullOrWhiteSpace(valor) ? null : valor.Trim();
 
     private static DateTime ParaUtc(DateTime valor) => valor.Kind switch
     {
